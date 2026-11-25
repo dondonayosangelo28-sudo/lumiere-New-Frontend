@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const BUILD_ID = '2026-11-25-main-anim-mobile-off'
+const BUILD_ID = '2026-11-25-drawer-no-transform'
 
 type Snapshot = {
   htmlClass: string
@@ -78,9 +78,18 @@ export default function IosThemeDiagnostic({
   const [open, setOpen] = useState(true)
   const [hideBgLayers, setHideBgLayers] = useState(false)
   const [stripThemeMeta, setStripThemeMeta] = useState(false)
-  const [backdropMode, setBackdropMode] = useState<'document' | 'fixed'>('document')
+  const [backdropMode, setBackdropMode] = useState<'document' | 'fixed' | 'off'>('document')
+  const [drawerAnim, setDrawerAnim] = useState<'fade' | 'transform'>('fade')
+  const [drawerPos, setDrawerPos] = useState<'fixed' | 'absolute'>('fixed')
   const [forceMainAnim, setForceMainAnim] = useState(false)
   const [snap, setSnap] = useState<Snapshot | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+    document.documentElement.dataset.drawerAnim = drawerAnim
+    document.documentElement.dataset.drawerPos = drawerPos
+    window.dispatchEvent(new CustomEvent('ios-diag:drawer', { detail: { anim: drawerAnim, pos: drawerPos } }))
+  }, [enabled, drawerAnim, drawerPos])
 
   useEffect(() => {
     if (!enabled) return
@@ -114,7 +123,7 @@ export default function IosThemeDiagnostic({
       vv?.removeEventListener('resize', update)
       vv?.removeEventListener('scroll', update)
     }
-  }, [enabled, dark, hideBgLayers, stripThemeMeta, backdropMode, forceMainAnim])
+  }, [enabled, dark, hideBgLayers, stripThemeMeta, backdropMode, drawerAnim, drawerPos, forceMainAnim])
 
   useEffect(() => {
     if (!enabled) return
@@ -159,7 +168,7 @@ export default function IosThemeDiagnostic({
   return (
     <aside
       aria-label="iOS theme diagnostic"
-      className="fixed bottom-3 left-3 z-[200] max-w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border border-line bg-card/95 p-3 text-[11px] leading-4 text-foreground shadow-xl backdrop-blur"
+      className="relative z-10 mx-auto my-3 w-full max-w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-line bg-card/95 p-3 text-[11px] leading-4 text-foreground shadow-sm"
     >
       <div className="flex items-center justify-between gap-2 font-semibold">
         <span>iOS Diag · {BUILD_ID}</span>
@@ -197,10 +206,26 @@ export default function IosThemeDiagnostic({
             </button>
             <button
               type="button"
-              onClick={() => setBackdropMode((m) => (m === 'document' ? 'fixed' : 'document'))}
+              onClick={() =>
+                setBackdropMode((m) => (m === 'document' ? 'fixed' : m === 'fixed' ? 'off' : 'document'))
+              }
               className="rounded border border-line px-2 py-1 text-[10px]"
             >
-              Dimmer: {backdropMode === 'document' ? 'Document' : 'Fixed'}
+              Dimmer: {backdropMode}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDrawerAnim((a) => (a === 'fade' ? 'transform' : 'fade'))}
+              className="rounded border border-line px-2 py-1 text-[10px]"
+            >
+              Drawer Anim: {drawerAnim}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDrawerPos((p) => (p === 'fixed' ? 'absolute' : 'fixed'))}
+              className="rounded border border-line px-2 py-1 text-[10px]"
+            >
+              Drawer Pos: {drawerPos}
             </button>
             <button
               type="button"

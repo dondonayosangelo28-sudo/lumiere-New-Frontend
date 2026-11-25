@@ -131,7 +131,7 @@ export function Logo() {
   )
 }
 
-function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout }: { role: Role; route: Route; go: (r: Route) => void; open: boolean; onClose: () => void; collapsed: boolean; onExpand: () => void; onLogout: () => void }) {
+function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout, drawerAnim = 'fade', drawerPos = 'fixed' }: { role: Role; route: Route; go: (r: Route) => void; open: boolean; onClose: () => void; collapsed: boolean; onExpand: () => void; onLogout: () => void; drawerAnim?: 'fade' | 'transform'; drawerPos?: 'fixed' | 'absolute' }) {
   // Rail mode applies on desktop only; the mobile drawer always shows labels.
   const rail = collapsed && !open
   const hide = rail ? 'lg:hidden' : 'opacity-100'
@@ -154,14 +154,21 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
     item.children?.some((c) => c.route === route || c.route === canonicalActiveRoute)
 
   const row = 'flex w-full items-center gap-2 overflow-hidden whitespace-nowrap rounded-md px-[11px] py-[10px] text-[14px] leading-5 transition-colors duration-150'
-  const drawer = useOverlayPresence(open, 300)
+  const drawer = useOverlayPresence(open, drawerAnim === 'transform' ? 300 : 200)
 
   return (
     <aside
+      data-drawer-anim={drawerAnim}
+      data-drawer-pos={drawerPos}
       className={cx(
-        'app-sidebar fixed bottom-[calc(15px+env(safe-area-inset-bottom))] left-[calc(14px+env(safe-area-inset-left))] top-[calc(85px+env(safe-area-inset-top))] z-40 flex w-[220px] flex-col overflow-hidden rounded-[14px] border border-edge not-dark:bg-nav pb-5 transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:sticky lg:bottom-auto lg:left-auto lg:top-[85px] lg:z-0 lg:h-[calc(100vh-100px)] lg:translate-x-0',
+        'app-sidebar left-[calc(14px+env(safe-area-inset-left))] top-[calc(85px+env(safe-area-inset-top))] z-40 flex w-[220px] flex-col overflow-hidden rounded-[14px] border border-edge not-dark:bg-nav pb-5 lg:sticky lg:bottom-auto lg:left-auto lg:top-[85px] lg:z-0 lg:h-[calc(100vh-100px)] lg:translate-x-0 lg:opacity-100 lg:pointer-events-auto lg:transition-[width] lg:duration-300 lg:ease-[cubic-bezier(0.4,0,0.2,1)]',
+        drawerPos === 'absolute'
+          ? 'absolute max-h-[calc(100dvh-100px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]'
+          : 'fixed bottom-[calc(15px+env(safe-area-inset-bottom))]',
         collapsed ? 'lg:w-[60px]' : 'lg:w-[220px]',
-        drawer.visible ? 'translate-x-0' : '-translate-x-[110%]',
+        drawerAnim === 'transform'
+          ? cx('transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]', drawer.visible ? 'translate-x-0' : '-translate-x-[110%]')
+          : cx('transition-opacity duration-200 ease-out', drawer.visible ? 'opacity-100' : 'pointer-events-none opacity-0'),
         !drawer.rendered && 'max-lg:hidden',
       )}
     >
@@ -437,20 +444,39 @@ export const useShell = () => useContext(ShellContext)
 export default function Shell({ account, route, go, dark, setDark, onLogout, children }: { account: Account; route: Route; go: (r: Route) => void; dark: boolean; setDark: (v: boolean) => void; onLogout: () => void; children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
-  const [backdropMode, setBackdropMode] = useState<'document' | 'fixed'>(() =>
-    typeof document !== 'undefined' && document.documentElement.dataset.sidebarBackdrop === 'fixed' ? 'fixed' : 'document',
+  const [backdropMode, setBackdropMode] = useState<'document' | 'fixed' | 'off'>(() =>
+    document.documentElement.dataset.sidebarBackdrop === 'fixed'
+      ? 'fixed'
+      : document.documentElement.dataset.sidebarBackdrop === 'off'
+        ? 'off'
+        : 'document',
   )
-  const sidebarDimmer = useOverlayPresence(mobileOpen, 200)
+  const [drawerAnim, setDrawerAnim] = useState<'fade' | 'transform'>(() =>
+    document.documentElement.dataset.drawerAnim === 'transform' ? 'transform' : 'fade',
+  )
+  const [drawerPos, setDrawerPos] = useState<'fixed' | 'absolute'>(() =>
+    document.documentElement.dataset.drawerPos === 'absolute' ? 'absolute' : 'fixed',
+  )
+  const sidebarDimmer = useOverlayPresence(mobileOpen && backdropMode !== 'off', 200)
   useEffect(() => {
     setMobileOpen(false)
   }, [route])
   useEffect(() => {
     const onMode = (e: Event) => {
-      const mode = (e as CustomEvent<'document' | 'fixed'>).detail
-      if (mode === 'document' || mode === 'fixed') setBackdropMode(mode)
+      const mode = (e as CustomEvent<'document' | 'fixed' | 'off'>).detail
+      if (mode === 'document' || mode === 'fixed' || mode === 'off') setBackdropMode(mode)
+    }
+    const onDrawer = (e: Event) => {
+      const detail = (e as CustomEvent<{ anim?: 'fade' | 'transform'; pos?: 'fixed' | 'absolute' }>).detail
+      if (detail?.anim) setDrawerAnim(detail.anim)
+      if (detail?.pos) setDrawerPos(detail.pos)
     }
     window.addEventListener('ios-diag:backdrop', onMode)
-    return () => window.removeEventListener('ios-diag:backdrop', onMode)
+    window.addEventListener('ios-diag:drawer', onDrawer)
+    return () => {
+      window.removeEventListener('ios-diag:backdrop', onMode)
+      window.removeEventListener('ios-diag:drawer', onDrawer)
+    }
   }, [])
   // Event Manager modules map their own class vocabulary onto the shared admin tokens;
   // the class sits on the document so their dialogs and menus pick it up too.
@@ -506,6 +532,8 @@ export default function Shell({ account, route, go, dark, setDark, onLogout, chi
             }}
             open={mobileOpen}
             onClose={() => setMobileOpen(false)}
+            drawerAnim={drawerAnim}
+            drawerPos={drawerPos}
           />
         </div>
         <div className="shell-content-height flex min-w-0 flex-1 flex-col">
