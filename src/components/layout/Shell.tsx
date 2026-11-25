@@ -509,7 +509,7 @@ export default function Shell({ account, route, go, dark, setDark, onLogout, chi
           />
         </div>
         <div className="shell-content-height flex min-w-0 flex-1 flex-col">
-          <main key={route} className="w-full flex-1 animate-fade-up pt-[14px]">
+          <main key={route} className="shell-main-enter w-full flex-1 pt-[14px]">
             {children}
           </main>
           <footer className="mt-4 flex items-center justify-between rounded-xl border border-edge bg-nav px-5 py-3 text-[12px] text-muted-foreground">

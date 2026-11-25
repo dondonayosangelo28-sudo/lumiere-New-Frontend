@@ -300,6 +300,9 @@ body {
   to { opacity: 1; transform: none; }
 }
 .animate-fade-up { animation: fade-up 0.35s ease-out both; }
+@media (min-width: 1024px) {
+  .shell-main-enter { animation: fade-up 0.35s ease-out both; }
+}
 @keyframes pop {
   from { opacity: 0; transform: translateY(-4px) scale(0.96); }
   to { opacity: 1; transform: none; }
@@ -317,7 +320,7 @@ body {
 .animate-shrink { animation: shrink linear forwards; transform-origin: left; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-up, .animate-pop, .animate-toast-in { animation: none !important; }
+  .animate-fade-up, .shell-main-enter, .animate-pop, .animate-toast-in { animation: none !important; }
   *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 

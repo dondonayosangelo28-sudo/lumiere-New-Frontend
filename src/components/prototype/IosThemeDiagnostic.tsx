@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const BUILD_ID = '2026-11-25-doc-dimmer'
+const BUILD_ID = '2026-11-25-main-anim-mobile-off'
 
 type Snapshot = {
   htmlClass: string
@@ -79,7 +79,19 @@ export default function IosThemeDiagnostic({
   const [hideBgLayers, setHideBgLayers] = useState(false)
   const [stripThemeMeta, setStripThemeMeta] = useState(false)
   const [backdropMode, setBackdropMode] = useState<'document' | 'fixed'>('document')
+  const [forceMainAnim, setForceMainAnim] = useState(false)
   const [snap, setSnap] = useState<Snapshot | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+    const main = document.querySelector<HTMLElement>('main.shell-main-enter')
+    if (main) {
+      main.classList.toggle('animate-fade-up', forceMainAnim)
+    }
+    return () => {
+      main?.classList.remove('animate-fade-up')
+    }
+  }, [enabled, forceMainAnim])
 
   useEffect(() => {
     if (!enabled) return
@@ -102,7 +114,7 @@ export default function IosThemeDiagnostic({
       vv?.removeEventListener('resize', update)
       vv?.removeEventListener('scroll', update)
     }
-  }, [enabled, dark, hideBgLayers, stripThemeMeta, backdropMode])
+  }, [enabled, dark, hideBgLayers, stripThemeMeta, backdropMode, forceMainAnim])
 
   useEffect(() => {
     if (!enabled) return
@@ -189,6 +201,13 @@ export default function IosThemeDiagnostic({
               className="rounded border border-line px-2 py-1 text-[10px]"
             >
               Dimmer: {backdropMode === 'document' ? 'Document' : 'Fixed'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setForceMainAnim((v) => !v)}
+              className="rounded border border-line px-2 py-1 text-[10px]"
+            >
+              Main Anim: {forceMainAnim ? 'Forced On' : 'Desktop Only'}
             </button>
           </div>
           <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-3.5 text-muted-foreground">
