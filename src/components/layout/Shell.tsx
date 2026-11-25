@@ -154,27 +154,18 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
     item.children?.some((c) => c.route === route || c.route === canonicalActiveRoute)
 
   const row = 'flex w-full items-center gap-2 overflow-hidden whitespace-nowrap rounded-md px-[11px] py-[10px] text-[14px] leading-5 transition-colors duration-150'
-  const backdrop = useOverlayPresence(open, 200)
   const drawer = useOverlayPresence(open, 300)
 
   return (
-    <>
-      {backdrop.rendered && (
-        <div
-          aria-hidden="true"
-          className={cx('fixed inset-0 z-30 bg-black/50 transition-opacity duration-200 lg:hidden', backdrop.visible ? 'opacity-100' : 'pointer-events-none opacity-0')}
-          onClick={onClose}
-        />
+    <aside
+      className={cx(
+        'app-sidebar fixed bottom-[calc(15px+env(safe-area-inset-bottom))] left-[calc(14px+env(safe-area-inset-left))] top-[calc(85px+env(safe-area-inset-top))] z-40 flex w-[220px] flex-col overflow-hidden rounded-[14px] border border-edge not-dark:bg-nav pb-5 transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:sticky lg:bottom-auto lg:left-auto lg:top-[85px] lg:z-0 lg:h-[calc(100vh-100px)] lg:translate-x-0',
+        collapsed ? 'lg:w-[60px]' : 'lg:w-[220px]',
+        drawer.visible ? 'translate-x-0' : '-translate-x-[110%]',
+        !drawer.rendered && 'max-lg:hidden',
       )}
-      <aside
-        className={cx(
-          'app-sidebar fixed bottom-[calc(15px+env(safe-area-inset-bottom))] left-[calc(14px+env(safe-area-inset-left))] top-[calc(85px+env(safe-area-inset-top))] z-40 flex w-[220px] flex-col overflow-hidden rounded-[14px] border border-edge not-dark:bg-nav pb-5 transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:sticky lg:bottom-auto lg:left-auto lg:top-[85px] lg:z-0 lg:h-[calc(100vh-100px)] lg:translate-x-0',
-          collapsed ? 'lg:w-[60px]' : 'lg:w-[220px]',
-          drawer.visible ? 'translate-x-0' : '-translate-x-[110%]',
-          !drawer.rendered && 'max-lg:hidden',
-        )}
-      >
-        <div className="pointer-events-none absolute inset-0 dark:hidden" style={{ backgroundImage: 'radial-gradient(800px 2900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
+    >
+      <div className="pointer-events-none absolute inset-0 dark:hidden" style={{ backgroundImage: 'radial-gradient(800px 2900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
         <nav className={cx("relative flex flex-1", rail ? "w-[220px] lg:w-[60px] lg:items-center lg:px-0 lg:pt-4" : "w-[220px]", " flex-col gap-1 overflow-y-auto overflow-x-hidden px-2 pb-4 pt-2")}>
           {nav.map((group) => (
             <div key={group.section || 'primary'} className={cx("flex flex-col gap-1", rail && "lg:w-full lg:items-center lg:gap-1")}>
@@ -253,7 +244,6 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
           </button>
         </div>
       </aside>
-    </>
   )
 }
 
@@ -447,9 +437,21 @@ export const useShell = () => useContext(ShellContext)
 export default function Shell({ account, route, go, dark, setDark, onLogout, children }: { account: Account; route: Route; go: (r: Route) => void; dark: boolean; setDark: (v: boolean) => void; onLogout: () => void; children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
+  const [backdropMode, setBackdropMode] = useState<'document' | 'fixed'>(() =>
+    typeof document !== 'undefined' && document.documentElement.dataset.sidebarBackdrop === 'fixed' ? 'fixed' : 'document',
+  )
+  const sidebarDimmer = useOverlayPresence(mobileOpen, 200)
   useEffect(() => {
     setMobileOpen(false)
   }, [route])
+  useEffect(() => {
+    const onMode = (e: Event) => {
+      const mode = (e as CustomEvent<'document' | 'fixed'>).detail
+      if (mode === 'document' || mode === 'fixed') setBackdropMode(mode)
+    }
+    window.addEventListener('ios-diag:backdrop', onMode)
+    return () => window.removeEventListener('ios-diag:backdrop', onMode)
+  }, [])
   // Event Manager modules map their own class vocabulary onto the shared admin tokens;
   // the class sits on the document so their dialogs and menus pick it up too.
   const studio = account.role === 'Event Manager'
@@ -461,7 +463,19 @@ export default function Shell({ account, route, go, dark, setDark, onLogout, chi
   return (
     <ShellContext.Provider value={{ collapsed, setCollapsed }}>
     <NavigationContext.Provider value={{ route, go }}>
-    <div className="min-h-viewport bg-bg text-foreground">
+    <div className="relative min-h-viewport bg-bg text-foreground">
+      {sidebarDimmer.rendered && (
+        <div
+          aria-hidden="true"
+          data-sidebar-dimmer={backdropMode}
+          className={cx(
+            backdropMode === 'fixed' ? 'fixed' : 'absolute',
+            'inset-0 z-30 bg-black/50 transition-opacity duration-200 lg:hidden',
+            sidebarDimmer.visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
       <TopBar
         account={account}
         route={route}

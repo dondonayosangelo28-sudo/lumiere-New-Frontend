@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const BUILD_ID = '2026-11-25-overlay-lifecycle'
+const BUILD_ID = '2026-11-25-doc-dimmer'
 
 type Snapshot = {
   htmlClass: string
@@ -19,6 +19,7 @@ type Snapshot = {
   scrollY: number
   standalone: boolean
   fixedBackdrops: number
+  sidebarDimmer: string
   sidebarDisplay: string
   overflowLocks: string
 }
@@ -35,6 +36,7 @@ function readSnapshot(): Snapshot {
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   const vv = window.visualViewport
   const sidebar = document.querySelector<HTMLElement>('aside.app-sidebar')
+  const dimmerEl = document.querySelector<HTMLElement>('[data-sidebar-dimmer]')
   const fixedBackdrops = Array.from(document.querySelectorAll<HTMLElement>('div.fixed.inset-0')).filter(
     (el) => el.className.includes('bg-black/'),
   ).length
@@ -57,6 +59,7 @@ function readSnapshot(): Snapshot {
       window.matchMedia('(display-mode: standalone)').matches ||
       Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
     fixedBackdrops,
+    sidebarDimmer: dimmerEl ? `${dimmerEl.dataset.sidebarDimmer} (${getComputedStyle(dimmerEl).position})` : 'unmounted',
     sidebarDisplay: sidebar ? getComputedStyle(sidebar).display : '(none)',
     overflowLocks: `${html.style.overflow || 'auto'}/${body.style.overflow || 'auto'}`,
   }
@@ -75,7 +78,14 @@ export default function IosThemeDiagnostic({
   const [open, setOpen] = useState(true)
   const [hideBgLayers, setHideBgLayers] = useState(false)
   const [stripThemeMeta, setStripThemeMeta] = useState(false)
+  const [backdropMode, setBackdropMode] = useState<'document' | 'fixed'>('document')
   const [snap, setSnap] = useState<Snapshot | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+    document.documentElement.dataset.sidebarBackdrop = backdropMode
+    window.dispatchEvent(new CustomEvent('ios-diag:backdrop', { detail: backdropMode }))
+  }, [enabled, backdropMode])
 
   useEffect(() => {
     if (!enabled) return
@@ -92,7 +102,7 @@ export default function IosThemeDiagnostic({
       vv?.removeEventListener('resize', update)
       vv?.removeEventListener('scroll', update)
     }
-  }, [enabled, dark, hideBgLayers, stripThemeMeta])
+  }, [enabled, dark, hideBgLayers, stripThemeMeta, backdropMode])
 
   useEffect(() => {
     if (!enabled) return
@@ -173,6 +183,13 @@ export default function IosThemeDiagnostic({
             >
               theme-color: {stripThemeMeta ? 'Removed' : 'Active'}
             </button>
+            <button
+              type="button"
+              onClick={() => setBackdropMode((m) => (m === 'document' ? 'fixed' : 'document'))}
+              className="rounded border border-line px-2 py-1 text-[10px]"
+            >
+              Dimmer: {backdropMode === 'document' ? 'Document' : 'Fixed'}
+            </button>
           </div>
           <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-3.5 text-muted-foreground">
             {[
@@ -183,7 +200,7 @@ export default function IosThemeDiagnostic({
               `#root: ${snap.rootBg} | shell: ${snap.shellBg}`,
               `innerH: ${snap.innerHeight} | vvH: ${snap.vvHeight ?? 'n/a'} (top ${snap.vvOffsetTop ?? 0})`,
               `scroll: ${snap.scrollEl} h=${snap.scrollHeight} y=${snap.scrollY}`,
-              `backdrops: ${snap.fixedBackdrops} | sidebar: ${snap.sidebarDisplay} | overflow: ${snap.overflowLocks}`,
+              `dimmer: ${snap.sidebarDimmer} | fixedBGs: ${snap.fixedBackdrops} | sidebar: ${snap.sidebarDisplay} | overflow: ${snap.overflowLocks}`,
             ].join('\n')}
           </pre>
         </div>
