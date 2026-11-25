@@ -28,6 +28,30 @@ import type { Route } from '../../navigation'
 
 export type { Route }
 
+function useOverlayPresence(open: boolean, exitMs = 200) {
+  const [rendered, setRendered] = useState(open)
+  const [visible, setVisible] = useState(open)
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true)
+      let raf2 = 0
+      const raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setVisible(true))
+      })
+      return () => {
+        cancelAnimationFrame(raf1)
+        cancelAnimationFrame(raf2)
+      }
+    }
+    setVisible(false)
+    const timer = setTimeout(() => setRendered(false), exitMs)
+    return () => clearTimeout(timer)
+  }, [open, exitMs])
+
+  return { rendered, visible }
+}
+
 type NavItem = { label: string; icon: LucideIcon; route?: Route; children?: { label: string; icon: LucideIcon; route: Route }[] }
 
 type NavGroup = { section: string; items: NavItem[] }
@@ -130,15 +154,24 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
     item.children?.some((c) => c.route === route || c.route === canonicalActiveRoute)
 
   const row = 'flex w-full items-center gap-2 overflow-hidden whitespace-nowrap rounded-md px-[11px] py-[10px] text-[14px] leading-5 transition-colors duration-150'
+  const backdrop = useOverlayPresence(open, 200)
+  const drawer = useOverlayPresence(open, 300)
 
   return (
     <>
-      <div className={cx('fixed inset-0 z-30 bg-black/50 transition-opacity lg:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={onClose} />
+      {backdrop.rendered && (
+        <div
+          aria-hidden="true"
+          className={cx('fixed inset-0 z-30 bg-black/50 transition-opacity duration-200 lg:hidden', backdrop.visible ? 'opacity-100' : 'pointer-events-none opacity-0')}
+          onClick={onClose}
+        />
+      )}
       <aside
         className={cx(
           'app-sidebar fixed bottom-[calc(15px+env(safe-area-inset-bottom))] left-[calc(14px+env(safe-area-inset-left))] top-[calc(85px+env(safe-area-inset-top))] z-40 flex w-[220px] flex-col overflow-hidden rounded-[14px] border border-edge not-dark:bg-nav pb-5 transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:sticky lg:bottom-auto lg:left-auto lg:top-[85px] lg:z-0 lg:h-[calc(100vh-100px)] lg:translate-x-0',
           collapsed ? 'lg:w-[60px]' : 'lg:w-[220px]',
-          open ? 'translate-x-0' : '-translate-x-[110%]',
+          drawer.visible ? 'translate-x-0' : '-translate-x-[110%]',
+          !drawer.rendered && 'max-lg:hidden',
         )}
       >
         <div className="pointer-events-none absolute inset-0 dark:hidden" style={{ backgroundImage: 'radial-gradient(800px 2900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
@@ -242,13 +275,15 @@ const seedNotes = [
   { id: 5, title: 'Weekly report available', body: 'Your weekly performance summary is ready to view', time: '1 day ago', unread: false, dot: 'bg-neutral-500' },
 ]
 
-function TopBar({ account, dark, setDark, onMenu, go, onLogout }: { account: Account; dark: boolean; setDark: (v: boolean) => void; onMenu: () => void; go: (r: Route) => void; onLogout: () => void }) {
+function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { account: Account; route: Route; dark: boolean; setDark: (v: boolean) => void; onMenu: () => void; go: (r: Route) => void; onLogout: () => void }) {
   const [menu, setMenu] = useState<null | 'bell' | 'user'>(null)
   const [notes, setNotes] = useState(seedNotes)
   const unread = notes.filter((n) => n.unread).length
   const ref = useClickOutside(() => setMenu(null))
   const [palette, setPalette] = useState(false)
   useCloseOnOverlay((root) => { setMenu(null); if (!root?.querySelector('[data-command-palette]')) setPalette(false) })
+  useEffect(() => { setMenu(null) }, [route])
+  const menuBackdrop = useOverlayPresence(Boolean(menu), 200)
   const name = accountName(account)
   const ini = initials(name)
 
@@ -281,7 +316,12 @@ function TopBar({ account, dark, setDark, onMenu, go, onLogout }: { account: Acc
   return (
     <>
       {/* Open menus dim the page behind the header */}
-      <div className={cx('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', menu ? 'opacity-100' : 'pointer-events-none opacity-0')} />
+      {menuBackdrop.rendered && (
+        <div
+          aria-hidden="true"
+          className={cx('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', menuBackdrop.visible ? 'opacity-100' : 'pointer-events-none opacity-0')}
+        />
+      )}
       <div
         className="sticky top-0 z-40"
         style={{
@@ -407,6 +447,9 @@ export const useShell = () => useContext(ShellContext)
 export default function Shell({ account, route, go, dark, setDark, onLogout, children }: { account: Account; route: Route; go: (r: Route) => void; dark: boolean; setDark: (v: boolean) => void; onLogout: () => void; children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [route])
   // Event Manager modules map their own class vocabulary onto the shared admin tokens;
   // the class sits on the document so their dialogs and menus pick it up too.
   const studio = account.role === 'Event Manager'
@@ -421,6 +464,7 @@ export default function Shell({ account, route, go, dark, setDark, onLogout, chi
     <div className="min-h-viewport bg-bg text-foreground">
       <TopBar
         account={account}
+        route={route}
         dark={dark}
         setDark={setDark}
         go={go}

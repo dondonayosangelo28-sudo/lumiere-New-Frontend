@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const BUILD_ID = '2026-11-25-dark-root-diag'
+const BUILD_ID = '2026-11-25-overlay-lifecycle'
 
 type Snapshot = {
   htmlClass: string
@@ -18,6 +18,9 @@ type Snapshot = {
   scrollHeight: number
   scrollY: number
   standalone: boolean
+  fixedBackdrops: number
+  sidebarDisplay: string
+  overflowLocks: string
 }
 
 function readSnapshot(): Snapshot {
@@ -31,6 +34,10 @@ function readSnapshot(): Snapshot {
   const shellStyle = shell ? getComputedStyle(shell) : null
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   const vv = window.visualViewport
+  const sidebar = document.querySelector<HTMLElement>('aside.app-sidebar')
+  const fixedBackdrops = Array.from(document.querySelectorAll<HTMLElement>('div.fixed.inset-0')).filter(
+    (el) => el.className.includes('bg-black/'),
+  ).length
   return {
     htmlClass: html.className || '(none)',
     themeColor: meta?.content ?? '(removed)',
@@ -49,6 +56,9 @@ function readSnapshot(): Snapshot {
     standalone:
       window.matchMedia('(display-mode: standalone)').matches ||
       Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+    fixedBackdrops,
+    sidebarDisplay: sidebar ? getComputedStyle(sidebar).display : '(none)',
+    overflowLocks: `${html.style.overflow || 'auto'}/${body.style.overflow || 'auto'}`,
   }
 }
 
@@ -173,6 +183,7 @@ export default function IosThemeDiagnostic({
               `#root: ${snap.rootBg} | shell: ${snap.shellBg}`,
               `innerH: ${snap.innerHeight} | vvH: ${snap.vvHeight ?? 'n/a'} (top ${snap.vvOffsetTop ?? 0})`,
               `scroll: ${snap.scrollEl} h=${snap.scrollHeight} y=${snap.scrollY}`,
+              `backdrops: ${snap.fixedBackdrops} | sidebar: ${snap.sidebarDisplay} | overflow: ${snap.overflowLocks}`,
             ].join('\n')}
           </pre>
         </div>
