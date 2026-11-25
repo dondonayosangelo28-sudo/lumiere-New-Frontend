@@ -16,6 +16,7 @@ import { canAccess } from './auth/roleConfig'
 import Login from './pages/auth/Login'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import SetPassword from './pages/auth/SetPassword'
+import IosThemeDiagnostic from './components/prototype/IosThemeDiagnostic'
 import { signOut, signOutForDemoReset, takeSignOutNotice, useSession } from './auth/session'
 import { projects as seedProjects, deletedProjects as seedDeletedProjects } from './data'
 
@@ -70,9 +71,9 @@ export default function App() {
     </Suspense>
   )
 
-  if (path === '/set-password') return <>{<SetPassword key={inviteToken ?? 'none'} token={inviteToken} dark={dark} setDark={setDark} onLogin={toLogin} />}{tools}</>
-  if (path === '/forgot-password') return <><ForgotPassword dark={dark} setDark={setDark} onLogin={toLogin} />{tools}</>
-  if (!account) return <><Login key={notice} notice={notice} dark={dark} setDark={setDark} onForgot={() => navigate('/forgot-password')} onLogin={() => (setNotice(''), resetRoute())} />{tools}</>
+  if (path === '/set-password') return <>{<SetPassword key={inviteToken ?? 'none'} token={inviteToken} dark={dark} setDark={setDark} onLogin={toLogin} />}{tools}<IosThemeDiagnostic dark={dark} setDark={setDark} /></>
+  if (path === '/forgot-password') return <><ForgotPassword dark={dark} setDark={setDark} onLogin={toLogin} />{tools}<IosThemeDiagnostic dark={dark} setDark={setDark} /></>
+  if (!account) return <><Login key={notice} notice={notice} dark={dark} setDark={setDark} onForgot={() => navigate('/forgot-password')} onLogin={() => (setNotice(''), resetRoute())} />{tools}<IosThemeDiagnostic dark={dark} setDark={setDark} /></>
 
   const isAdmin = account.role === 'System Admin'
   const page = (
@@ -97,6 +98,7 @@ export default function App() {
         {!canAccess(account.role, route) ? <AccessDenied go={go} /> : page}
       </Shell>
       {tools}
+      <IosThemeDiagnostic dark={dark} setDark={setDark} />
     </>
   )
 }
