@@ -1,4 +1,5 @@
 import { newBrief, themes, type Brief, type Pin } from '../model';
+import { recordWorkflowAudit } from '../../../auth/crossRoleAudit';
 
 /** Standalone, reusable theme mood boards. Stored apart from client event pitches. */
 export interface ThemeDetails { name: string; category: string; description: string; cover?: string; palette: string[] }
@@ -143,7 +144,18 @@ export function listThemeBoards(user: StudioUser): ThemeBoard[] {
 
 export function deleteThemeBoard(user: StudioUser, id: string): void {
   const boards = listThemeBoards(user);
+  const target = boards.find((b) => b.id === id);
   persistThemes(user, boards.filter((b) => b.id !== id));
+  if (target) {
+    recordWorkflowAudit({
+      actor: { email: user.email, role: 'Event Manager' },
+      fallbackRole: 'Event Manager',
+      action: 'Mood board deleted',
+      target: { type: 'mood-board', id: target.id, label: `${target.details.name || 'Untitled board'} (${target.id})` },
+      description: `Deleted mood board "${target.details.name || 'Untitled board'}".`,
+      operationId: `mb-delete:${target.id}`,
+    });
+  }
 }
 
 export function saveThemeBoard(user: StudioUser, board: Omit<ThemeBoard, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ThemeBoard {
@@ -156,6 +168,14 @@ export function saveThemeBoard(user: StudioUser, board: Omit<ThemeBoard, 'id' | 
   } catch {
     throw new Error('This browser is out of storage space. Remove a large upload and try again.');
   }
+  recordWorkflowAudit({
+    actor: { email: user.email, role: 'Event Manager' },
+    fallbackRole: 'Event Manager',
+    action: existing ? 'Mood board updated' : 'Mood board created',
+    target: { type: 'mood-board', id: saved.id, label: `${saved.details.name || 'Untitled board'} (${saved.id})` },
+    description: `${existing ? 'Updated' : 'Created'} mood board "${saved.details.name || 'Untitled board'}".`,
+    operationId: `mb-save:${saved.id}:${saved.updatedAt}`,
+  });
   return saved;
 }
 

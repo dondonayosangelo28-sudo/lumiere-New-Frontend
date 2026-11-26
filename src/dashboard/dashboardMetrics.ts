@@ -3,7 +3,8 @@
  * They read the existing browser-storage prototype store and never create records.
  */
 import { liveSessions } from '../auth/session'
-import { ROLES, lockInfo, type Account, type AttemptResult, type DemoState, type LifecycleStatus, type LoginAttempt, type LoginLock, type Role } from '../auth/store'
+import { ROLES, lockInfo, type Account, type AttemptResult, type AuditEvent, type DemoState, type LifecycleStatus, type LoginAttempt, type LoginLock, type Role } from '../auth/store'
+import { dayStart, dayEnd } from '../auth/manilaTime'
 
 const HOUR = 60 * 60_000
 const DAY = 24 * HOUR
@@ -127,4 +128,211 @@ export function historyCoverage(records: readonly { at: number }[], limit: numbe
   const oldest = records.reduce((min, record) => Math.min(min, record.at), Infinity)
   const truncated = records.length >= limit
   return { truncated, oldest: Number.isFinite(oldest) ? oldest : null, incomplete: truncated && oldest > rangeStart }
+}
+
+/* ---------- Manila calendar dates, date-range buckets, Insights & Audit breakdown ---------- */
+
+const manilaYmdFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DASHBOARD_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+export function toManilaYmd(t: number): string {
+  return manilaYmdFmt.format(t)
+}
+
+export function addDaysToYmd(ymd: string, delta: number): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const utc = Date.UTC(y, m - 1, d + delta)
+  const dt = new Date(utc)
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
+
+export function subtractMonthsFromYmd(ymd: string, months: number): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const targetMonthIndex = (y * 12 + (m - 1)) - months
+  const targetYear = Math.floor(targetMonthIndex / 12)
+  const targetMonth = ((targetMonthIndex % 12) + 12) % 12
+  const maxDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate()
+  const targetDay = Math.min(d, maxDay)
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`
+}
+
+export function manilaRangeBounds(fromYmd: string, toYmd: string) {
+  return {
+    start: dayStart(fromYmd) ?? 0,
+    end: dayEnd(toYmd) ?? Date.now(),
+  }
+}
+
+export function dayBucketsForRange(fromYmd: string, toYmd: string): TimeBucket[] {
+  const start = dayStart(fromYmd)
+  const end = dayStart(toYmd)
+  if (start === null || end === null || start > end) return []
+  const buckets: TimeBucket[] = []
+  const totalDays = Math.min(366, Math.round((end - start) / DAY) + 1)
+  for (let i = 0; i < totalDays; i++) {
+    const s = start + i * DAY
+    const e = s + DAY - 1
+    buckets.push({
+      start: s,
+      end: e,
+      label: dayLabel.format(s),
+      fullLabel: `${fullDayLabel.format(s)} ${DASHBOARD_TIME_ZONE_LABEL}`,
+    })
+  }
+  return buckets
+}
+
+export function hourBucketsForDay(ymd: string): TimeBucket[] {
+  const start = dayStart(ymd)
+  if (start === null) return []
+  return Array.from({ length: 24 }, (_, i) => {
+    const s = start + i * HOUR
+    const e = s + HOUR - 1
+    return {
+      start: s,
+      end: e,
+      label: hourLabel.format(s),
+      fullLabel: `${fullHourLabel.format(s)} – ${hourLabel.format(s + HOUR)} ${DASHBOARD_TIME_ZONE_LABEL}`,
+    }
+  })
+}
+
+function manilaYearMonth(t: number) {
+  const d = new Date(t + GMT8_OFFSET)
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() }
+}
+
+export function insightsMetrics(state: Readonly<DemoState>, now: number) {
+  const totalCreated = state.accounts.length
+  const nonDeleted = nonDeletedAccounts(state.accounts)
+  const activeAccounts = nonDeleted.filter((a) => a.status === 'Active')
+  const pendingAccounts = nonDeleted.filter((a) => a.status === 'Pending Activation')
+  const inactiveAccounts = nonDeleted.filter((a) => a.status === 'Inactive')
+
+  const cur = manilaYearMonth(now)
+  const prev = cur.month === 0 ? { year: cur.year - 1, month: 11 } : { year: cur.year, month: cur.month - 1 }
+  const createdThisMonth = state.accounts.filter((a) => {
+    const p = manilaYearMonth(a.createdAt)
+    return p.year === cur.year && p.month === cur.month && a.createdAt <= now
+  }).length
+  const createdLastMonth = state.accounts.filter((a) => {
+    const p = manilaYearMonth(a.createdAt)
+    return p.year === prev.year && p.month === prev.month
+  }).length
+
+  const userGrowth = createdLastMonth === 0 ? null : Math.round(((createdThisMonth - createdLastMonth) / createdLastMonth) * 100)
+
+  const todayStart = Math.floor((now + GMT8_OFFSET) / DAY) * DAY - GMT8_OFFSET
+  const activeIds = new Set(activeAccounts.map((a) => a.id))
+  const signedInTodayIds = new Set<number>()
+  for (const att of state.loginAttempts) {
+    if (att.result === 'Success' && att.at >= todayStart && att.at <= now && att.accountId !== null && activeIds.has(att.accountId)) {
+      signedInTodayIds.add(att.accountId)
+    }
+  }
+  const engagementRate = activeAccounts.length === 0 ? null : Math.round((signedInTodayIds.size / activeAccounts.length) * 100)
+
+  const retention = totalCreated === 0 ? null : Math.round(((activeAccounts.length + pendingAccounts.length) / totalCreated) * 100)
+  const activeUsersPct = totalCreated === 0 ? null : Math.round((activeAccounts.length / totalCreated) * 100)
+  const pendingUsersPct = totalCreated === 0 ? null : Math.round((pendingAccounts.length / totalCreated) * 100)
+  const inactiveUsersPct = totalCreated === 0 ? null : Math.round((inactiveAccounts.length / totalCreated) * 100)
+
+  return {
+    totalCreated,
+    trends: { userGrowth, engagementRate, retention },
+    account: { activeUsersPct, pendingUsersPct, inactiveUsersPct },
+  }
+}
+
+export type OperationalRole = Exclude<Role, 'System Admin'>
+
+export const OPERATIONAL_ROLES: readonly OperationalRole[] = [
+  'Executive',
+  'Event Manager',
+  'Warehouse Operations Manager',
+  'Ground Crew',
+]
+
+export const WORK_AUDIT_ACTIONS: ReadonlySet<string> = new Set([
+  'Account edited',
+  'Password changed',
+  'Pitch created',
+  'Pitch updated',
+  'Pitch approved',
+  'Pitch deleted',
+  'Mood board created',
+  'Mood board updated',
+  'Mood board deleted',
+  'Approval published',
+  'Stock allocated',
+  'Dispatch batch created',
+  'Dispatch batch updated',
+  'Dispatch batch stage updated',
+  'Dispatch batch deleted',
+  'Loading checklist submitted',
+  'Venue arrival confirmed',
+  'Warehouse arrival confirmed',
+  'Return count submitted',
+  'Return checklist submitted',
+  'Warehouse accountability closed',
+  'Vendor created',
+  'Vendor updated',
+  'Vendor deleted',
+  'Acquisition created',
+  'Acquisition received',
+  'Production job updated',
+  'Incident reported',
+])
+
+export function isOperationalWorkAuditEvent(event: AuditEvent): event is AuditEvent & { actorRole: OperationalRole } {
+  return (
+    event.result === 'Success' &&
+    (OPERATIONAL_ROLES as readonly string[]).includes(event.actorRole) &&
+    WORK_AUDIT_ACTIONS.has(event.action)
+  )
+}
+
+export function operationalAuditSeries(
+  events: readonly AuditEvent[],
+  buckets: readonly TimeBucket[],
+  now: number,
+): Record<OperationalRole, number[]> {
+  const counts = Object.fromEntries(
+    OPERATIONAL_ROLES.map((role) => [role, buckets.map(() => 0)]),
+  ) as Record<OperationalRole, number[]>
+  for (const event of events) {
+    if (!isOperationalWorkAuditEvent(event)) continue
+    const idx = bucketIndex(buckets, event.at, now)
+    if (idx >= 0) counts[event.actorRole][idx]++
+  }
+  return counts
+}
+
+export type AuditBucketBreakdown = {
+  total: number
+  byRole: [string, number][]
+  byAction: [string, number][]
+}
+
+export function auditDayBreakdown(events: readonly AuditEvent[], buckets: readonly TimeBucket[], now: number): AuditBucketBreakdown[] {
+  const roleMaps = buckets.map(() => new Map<string, number>())
+  const actionMaps = buckets.map(() => new Map<string, number>())
+  const totals = buckets.map(() => 0)
+  for (const ev of events) {
+    const idx = bucketIndex(buckets, ev.at, now)
+    if (idx < 0) continue
+    totals[idx]++
+    const r = ev.actorRole || 'System'
+    roleMaps[idx].set(r, (roleMaps[idx].get(r) ?? 0) + 1)
+    actionMaps[idx].set(ev.action, (actionMaps[idx].get(ev.action) ?? 0) + 1)
+  }
+  return buckets.map((_, idx) => ({
+    total: totals[idx],
+    byRole: Array.from(roleMaps[idx].entries()).sort((a, b) => b[1] - a[1]),
+    byAction: Array.from(actionMaps[idx].entries()).sort((a, b) => b[1] - a[1]),
+  }))
 }

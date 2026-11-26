@@ -1,4 +1,5 @@
 import { oldSystemApis, v51ContractApis } from "./apiClients"
+import { recordWorkflowAudit } from "../auth/crossRoleAudit"
 import type {
   CheckpointName,
   FieldIncidentReport,
@@ -373,9 +374,11 @@ export function updateManifestReturnedQuantity(
   if (!Number.isFinite(returnedQty) || returnedQty < 0) {
     return { ok: false, error: "Returned quantity must be a finite number (0 or greater)." }
   }
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
       return {
         ok: false,
@@ -406,8 +409,18 @@ export function updateManifestReturnedQuantity(
       order.returnChecklist = undefined
     }
 
-    return { ok: true, discrepancy: Math.max(0, outboundActual - clamped) }
+    return { ok: true as const, discrepancy: Math.max(0, outboundActual - clamped) }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor: { role: "Ground Crew" },
+      fallbackRole: "Ground Crew",
+      action: "Return count submitted",
+      target: { type: "order", id: eventId, label: eventLabel },
+      description: `Recorded return count (${returnedQty}) on ${eventLabel}.`,
+    })
+  }
+  return res as { ok: true; discrepancy: number } | { ok: false; error: string }
 }
 
 /**
@@ -424,9 +437,11 @@ export function submitFinalReturnChecklist(
 ):
   | { ok: true; autoCreatedMissingReports: number; alreadySubmitted?: boolean }
   | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
 
     if (order.warehouseClosed) {
       return {
@@ -670,8 +685,19 @@ export function submitFinalReturnChecklist(
     order.returnChecklist = submission
 
     void v51ContractApis.submitReturnChecklist(eventId, submission)
-    return { ok: true, autoCreatedMissingReports, alreadySubmitted: false }
+    return { ok: true as const, autoCreatedMissingReports, alreadySubmitted: false }
   })
+  if (res.ok && !res.alreadySubmitted) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Ground Crew",
+      action: "Return checklist submitted",
+      target: { type: "order", id: eventId, label: eventLabel },
+      description: `Submitted final return checklist for ${eventLabel}.`,
+      operationId: `gc-return-check:${eventId}`,
+    })
+  }
+  return res as { ok: true; autoCreatedMissingReports: number; alreadySubmitted?: boolean } | { ok: false; error: string }
 }
 
 /**
@@ -1109,9 +1135,11 @@ export function closeWarehouseEventAccountability(
     }
   }
 
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
 
     if (order.warehouseClosed) {
       return { ok: true, alreadyClosed: true }
@@ -1289,6 +1317,17 @@ export function closeWarehouseEventAccountability(
       notes: order.closeoutNotes,
     })
 
-    return { ok: true, alreadyClosed: false }
+    return { ok: true as const, alreadyClosed: false }
   })
+  if (res.ok && !res.alreadyClosed) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Warehouse accountability closed",
+      target: { type: "order", id: eventId, label: eventLabel },
+      description: `Closed warehouse event accountability for ${eventLabel}.`,
+      operationId: `wh-closeout:${eventId}`,
+    })
+  }
+  return res as { ok: true; alreadyClosed?: boolean } | { ok: false; error: string }
 }

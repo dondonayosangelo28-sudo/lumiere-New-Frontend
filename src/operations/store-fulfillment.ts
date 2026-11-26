@@ -9,6 +9,7 @@ import type {
   WarehouseOrderRequest,
 } from "./types"
 import { mutateOperationsStore } from "./store-core"
+import { recordWorkflowAudit } from "../auth/crossRoleAudit"
 
 /**
  * D01 & D02 & Scenario 9:
@@ -294,11 +295,15 @@ export function allocateStockForOrderLine(
   allocateQty: number,
   releaseForLoad: boolean,
 ): { ok: true } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  let assetLabel = assetId
+  const res = mutateOperationsStore<{ ok: true } | { ok: false; error: string }>((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
     if (!order) return { ok: false, error: "Order Request not found." }
     const line = order.stockLines.find((s) => s.assetId === assetId)
     if (!line) return { ok: false, error: "Stock line not found in Order Request." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
+    assetLabel = line.name
 
     const inv = draft.inventory.find((i) => i.assetId === assetId)
     const prevAllocated = line.allocatedQty
@@ -351,6 +356,16 @@ export function allocateStockForOrderLine(
 
     return { ok: true }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor: { role: "Warehouse Operations Manager" },
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Stock allocated",
+      target: { type: "order", id: eventId, label: `${assetLabel} · ${eventLabel}` },
+      description: `Allocated ${allocateQty} of ${assetLabel} for ${eventLabel}.`,
+    })
+  }
+  return res
 }
 
 /**

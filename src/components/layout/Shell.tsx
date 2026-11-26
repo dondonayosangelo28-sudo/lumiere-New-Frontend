@@ -139,9 +139,23 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     Users: route.startsWith('accounts'),
   })
+  const [flashingChild, setFlashingChild] = useState<Route | null>(null)
+  const flashTimerRef = useRef<number | null>(null)
   useEffect(() => {
     if (route.startsWith('accounts')) setExpanded((e) => ({ ...e, Users: true }))
   }, [route])
+  useEffect(() => () => {
+    if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+  }, [])
+
+  const triggerUsersChildFlash = (targetRoute: Route) => {
+    if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+    setFlashingChild(targetRoute)
+    flashTimerRef.current = window.setTimeout(() => {
+      setFlashingChild((cur) => (cur === targetRoute ? null : cur))
+      flashTimerRef.current = null
+    }, 550)
+  }
 
   const canonicalActiveRoute = route.startsWith('module-')
     ? (resolveOperationsRoute(route).canonicalRoute as Route)
@@ -173,84 +187,101 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
       )}
     >
       <div className="pointer-events-none absolute inset-0 dark:hidden" style={{ backgroundImage: 'radial-gradient(800px 2900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
-        <nav className={cx("relative flex flex-1", rail ? "w-[220px] lg:w-[60px] lg:items-center lg:px-0 lg:pt-4" : "w-[220px]", " flex-col gap-1 overflow-y-auto overflow-x-hidden px-2 pb-4 pt-2")}>
-          {nav.map((group) => (
-            <div key={group.section || 'primary'} className={cx("flex flex-col gap-1", rail && "lg:w-full lg:items-center lg:gap-1")}>
-              {group.section && (
-                <div className={cx("relative flex min-h-[30px] items-end", rail && "lg:w-full lg:min-h-[28px] lg:justify-center")}>
-                  <span className={cx('px-[6px] pb-1 text-[11px] font-semibold uppercase tracking-[0.02em] text-muted-foreground transition-opacity duration-200', hide)}>{group.section}</span>
-                  <span className={cx('absolute left-1/2 top-1/2 hidden h-px w-[20px] -translate-x-1/2 rounded bg-fg/20 transition-opacity duration-200 lg:block', rail ? 'opacity-100' : 'opacity-0')} />
-                </div>
-              )}
-              {group.items.map((item) => {
-                const active = isActive(item)
-                const isOpen = !!expanded[item.label] && !rail
-                return (
-                  <div key={item.label}>
-                    <button
-                      onClick={() => {
-                        if (item.children && rail) {
-                          setExpanded((e) => ({ ...e, [item.label]: true }))
-                          onExpand()
+      <nav className={cx("relative flex flex-1", rail ? "w-[220px] lg:w-[60px] lg:items-center lg:px-0 lg:pt-4" : "w-[220px]", " flex-col gap-1 overflow-y-auto overflow-x-hidden px-2 pb-4 pt-2")}>
+        {nav.map((group) => (
+          <div key={group.section || 'primary'} className={cx("flex flex-col gap-1", rail && "lg:w-full lg:items-center lg:gap-1")}>
+            {group.section && (
+              <div className={cx("relative flex min-h-[30px] items-end", rail && "lg:w-full lg:min-h-[28px] lg:justify-center")}>
+                <span className={cx('px-[6px] pb-1 text-[11px] font-semibold uppercase tracking-[0.02em] text-muted-foreground transition-opacity duration-200', hide)}>{group.section}</span>
+                <span className={cx('absolute left-1/2 top-1/2 hidden h-px w-[20px] -translate-x-1/2 rounded bg-fg/20 transition-opacity duration-200 lg:block', rail ? 'opacity-100' : 'opacity-0')} />
+              </div>
+            )}
+            {group.items.map((item) => {
+              const active = isActive(item)
+              const isOpen = !!expanded[item.label] && !rail
+              return (
+                <div key={item.label}>
+                  <button
+                    onClick={() => {
+                      if (item.children && rail) {
+                        setExpanded((e) => ({ ...e, [item.label]: true }))
+                        onExpand()
+                      }
+                      else if (item.children) setExpanded((e) => ({ ...e, [item.label]: !e[item.label] }))
+                      else if (item.route) {
+                        if (item.route === 'module-dispatch-returns') {
+                          setOperationsNavigationContext({ eventId: undefined, subView: undefined }, { merge: false })
                         }
-                        else if (item.children) setExpanded((e) => ({ ...e, [item.label]: !e[item.label] }))
-                        else if (item.route) {
-                          if (item.route === 'module-dispatch-returns') {
-                            setOperationsNavigationContext({ eventId: undefined, subView: undefined }, { merge: false })
-                          }
-                          go(item.route)
-                        }
-                      }}
-                      title={rail ? item.label : undefined}
-                      aria-expanded={item.children ? isOpen : undefined}
-                      className={cx(
-                        row,
-                        rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0',
-                        active ? 'bg-fg/[0.18] text-foreground' : 'text-muted-foreground hover:bg-fg/[0.06] hover:text-foreground',
-                      )}
-                    >
-                      <item.icon size={rail ? 18 : 20} strokeWidth={1.6} className="shrink-0" />
-                      <span className={cx('flex-1 text-left transition-opacity duration-200', hide)}>{item.label}</span>
-                      {item.children && (
-                        <ChevronRight size={16} className={cx('shrink-0 transition-[transform,opacity] duration-200', isOpen && 'rotate-90', hide)} />
-                      )}
-                    </button>
+                        go(item.route)
+                      }
+                    }}
+                    title={rail ? item.label : undefined}
+                    aria-expanded={item.children ? isOpen : undefined}
+                    className={cx(
+                      row,
+                      rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0',
+                      active ? 'bg-fg/[0.18] text-foreground' : 'text-muted-foreground hover:bg-fg/[0.06] hover:text-foreground',
+                    )}
+                  >
+                    <item.icon size={rail ? 18 : 20} strokeWidth={1.6} className="shrink-0" />
+                    <span className={cx('flex-1 text-left transition-opacity duration-200', hide)}>{item.label}</span>
                     {item.children && (
-                      <div className={cx('grid transition-[grid-template-rows,opacity] duration-300 ease-out', isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}>
-                        <div className="overflow-hidden">
-                          <div className={cx('relative ml-[26px] mt-1 flex flex-col gap-0.5 pl-[10px]', item.label === 'Users' && 'before:absolute before:inset-y-0 before:left-[10px] before:w-px before:bg-fg/10')}>
-                            {item.children.map((c) => (
+                      <ChevronRight size={16} className={cx('shrink-0 transition-[transform,opacity] duration-200', isOpen && 'rotate-90', hide)} />
+                    )}
+                  </button>
+                  {item.children && (
+                    <div className={cx('grid transition-[grid-template-rows,opacity] duration-300 ease-out', isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}>
+                      <div className="overflow-hidden">
+                        <div className="relative ml-8 flex flex-col py-2 pl-[3px] before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-fg/[0.08]">
+                          {item.children.map((c) => {
+                            const isUsersChild = item.label === 'Users'
+                            const isCurrent = route === c.route
+                            const isFlashing = isUsersChild && flashingChild === c.route
+                            return (
                               <button
                                 key={c.route}
+                                type="button"
                                 tabIndex={isOpen ? 0 : -1}
-                                aria-current={route === c.route ? 'page' : undefined}
-                                onClick={() => go(c.route)}
+                                aria-current={isCurrent ? 'page' : undefined}
+                                onClick={() => {
+                                  if (isUsersChild) triggerUsersChildFlash(c.route)
+                                  go(c.route)
+                                }}
                                 className={cx(
-                                  'relative flex w-full items-center gap-2 rounded-md px-2.5 py-[6px] text-[14px] leading-5 transition-colors duration-150',
-                                  route === c.route ? 'font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-6 before:w-px before:-translate-y-1/2 before:rounded-full before:bg-foreground' : 'text-muted-foreground hover:bg-fg/[0.06] hover:text-foreground',
+                                  'relative flex h-10 w-full cursor-pointer items-center gap-[11px] rounded-none pl-[13px] pr-2.5 text-[14px] leading-5 outline-none transition-[background-color,color] duration-300 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-fg/30',
+                                  isUsersChild
+                                    ? cx(
+                                        'before:pointer-events-none before:absolute before:top-1 before:bottom-1 before:-left-[3px] before:w-px before:bg-foreground before:transition-opacity before:duration-300',
+                                        isFlashing ? 'bg-fg/[0.07] before:opacity-100' : 'bg-transparent before:opacity-0',
+                                        isCurrent || isFlashing ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
+                                      )
+                                    : isCurrent
+                                      ? 'font-medium text-foreground before:absolute before:top-1 before:bottom-1 before:-left-[3px] before:w-px before:bg-foreground'
+                                      : 'text-muted-foreground hover:text-foreground',
                                 )}
                               >
-                                <c.icon size={16} strokeWidth={1.6} />
+                                <c.icon size={16} strokeWidth={1.6} className="shrink-0" />
                                 {c.label}
                               </button>
-                            ))}
-                          </div>
+                            )
+                          })}
                         </div>
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </nav>
-        <div className={cx("relative border-t border-edge px-2 pt-3", rail ? "w-[220px] lg:flex lg:w-[60px] lg:justify-center lg:px-0" : "w-[220px]")}>
-          <button onClick={onLogout} title={rail ? 'Logout' : undefined} className={cx(row, rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0', 'text-muted-foreground hover:bg-fg/20 hover:text-destructive focus-visible:bg-fg/20 focus-visible:text-destructive active:bg-fg/20 active:text-destructive')}>
-            <span className="grid size-5 shrink-0 place-items-center"><LogOut size={18} strokeWidth={1.6} /></span>
-            <span className={cx('transition-opacity duration-200', hide)}>Logout</span>
-          </button>
-        </div>
-      </aside>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </nav>
+      <div className={cx("relative border-t border-edge px-2 pt-3", rail ? "w-[220px] lg:flex lg:w-[60px] lg:justify-center lg:px-0" : "w-[220px]")}>
+        <button onClick={onLogout} title={rail ? 'Logout' : undefined} className={cx(row, rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0', 'text-muted-foreground hover:bg-fg/20 hover:text-destructive focus-visible:bg-fg/20 focus-visible:text-destructive active:bg-fg/20 active:text-destructive')}>
+          <span className="grid size-5 shrink-0 place-items-center"><LogOut size={18} strokeWidth={1.6} /></span>
+          <span className={cx('transition-opacity duration-200', hide)}>Logout</span>
+        </button>
+      </div>
+    </aside>
   )
 }
 
@@ -327,110 +358,110 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
           paddingRight: 'calc(15px + env(safe-area-inset-right))',
         }}
       >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 bg-bg"
-        style={{ height: 'calc(10px + env(safe-area-inset-top))' }}
-      />
-      <header className="app-topbar relative flex h-16 items-center rounded-[14px] border border-edge not-dark:bg-chrome/80 backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-0 rounded-[14px] dark:hidden" style={{ backgroundImage: 'radial-gradient(2800px 900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
-        <div className="relative flex w-60 items-center px-3">
-          <button onClick={onMenu} aria-label="Toggle sidebar" className={cx('mr-2 grid size-8 place-items-center rounded-full text-muted-foreground', chip)}>
-            <Menu size={16} />
-          </button>
-          <Logo />
-        </div>
-        <div className="flex-1" />
-        <div ref={ref} className="relative flex items-center gap-4 pr-6">
-          <button onClick={() => setPalette(true)} className={cx('search-control hidden h-8 w-52 items-center justify-between rounded-full px-3 text-[14px] text-muted-foreground md:flex', chip)}>
-            <span className="flex items-center gap-2"><Search size={16} /> Search...</span>
-            <kbd className="rounded-md border border-edge bg-nav px-1.5 py-0.5 font-mono text-[10px] leading-[14px]">Ctrl+K</kbd>
-          </button>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setDark(!dark)} aria-label="Toggle theme" className={cx('grid size-8 place-items-center rounded-full', chip)}>
-              {dark ? <Sun size={16} /> : <Moon size={16} />}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 bg-bg"
+          style={{ height: 'calc(10px + env(safe-area-inset-top))' }}
+        />
+        <header className="app-topbar relative flex h-16 items-center rounded-[14px] border border-edge not-dark:bg-chrome/80 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 rounded-[14px] dark:hidden" style={{ backgroundImage: 'radial-gradient(2800px 900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
+          <div className="relative flex w-60 items-center px-3">
+            <button onClick={onMenu} aria-label="Toggle sidebar" className={cx('mr-2 grid size-8 place-items-center rounded-full text-muted-foreground', chip)}>
+              <Menu size={16} />
             </button>
-            <div className="relative">
-              <button onClick={() => toggle('bell')} aria-label="Notifications" className={cx('relative grid size-8 place-items-center rounded-full', chip)}>
-                <Bell size={16} />
-                {unread > 0 && <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#f87171] text-[12px] leading-4 text-white">{unread}</span>}
+            <Logo />
+          </div>
+          <div className="flex-1" />
+          <div ref={ref} className="relative flex items-center gap-4 pr-6">
+            <button onClick={() => setPalette(true)} className={cx('search-control hidden h-8 w-52 items-center justify-between rounded-full px-3 text-[14px] text-muted-foreground md:flex', chip)}>
+              <span className="flex items-center gap-2"><Search size={16} /> Search...</span>
+              <kbd className="rounded-md border border-edge bg-nav px-1.5 py-0.5 font-mono text-[10px] leading-[14px]">Ctrl+K</kbd>
+            </button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setDark(!dark)} aria-label="Toggle theme" className={cx('grid size-8 place-items-center rounded-full', chip)}>
+                {dark ? <Sun size={16} /> : <Moon size={16} />}
               </button>
-              {menu === 'bell' && (
-                <div onKeyDown={menuKeys} className={cx(pop, 'w-[320px]')}>
-                  <div className="flex items-center justify-between px-4 py-3.5">
-                    <span className="text-[16px] font-semibold">Notifications</span>
-                    <button onClick={() => setNotes((ns) => ns.map((n) => ({ ...n, unread: false })))} className="text-[14px] font-medium transition-colors hover:text-muted-foreground">Mark all read</button>
-                  </div>
-                  <ul className="max-h-[300px] overflow-y-auto">
-                    {notes.map((n) => (
-                      <li key={n.id} className={cx('group relative flex gap-3 px-4 py-3 transition-colors', n.unread ? 'bg-chip' : 'hover:bg-chip/60')}>
-                        <span className={cx('mt-2 size-1.5 shrink-0 rounded-full', n.dot)} />
-                        <div className="min-w-0 flex-1 pr-14">
-                          <p className="text-[14px] font-semibold">{n.title}</p>
-                          <p className="text-[14px] leading-[22px] text-muted-foreground">{n.body}</p>
-                          <p className="mt-2 text-[12px] text-muted-foreground">{n.time}</p>
-                        </div>
-                        <div className="absolute right-4 top-3 flex gap-1">
-                          {n.unread && (
-                            <button aria-label="Mark as read" onClick={() => setNotes((ns) => ns.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))} className="grid size-6 place-items-center rounded-full bg-black/20 text-muted-foreground hover:text-foreground">
-                              <Check size={12} />
-                            </button>
-                          )}
-                          <button aria-label="Dismiss" onClick={() => setNotes((ns) => ns.filter((x) => x.id !== n.id))} className="grid size-6 place-items-center rounded-full bg-black/20 text-muted-foreground hover:text-foreground">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                    {notes.length === 0 && <li className="px-4 py-10 text-center text-[13px] text-muted-foreground">You're all caught up</li>}
-                  </ul>
-                  <button onClick={() => (setMenu(null), go('settings-app'))} className="flex w-full items-center justify-center gap-2 border-t border-edge bg-black/10 py-3.5 text-[14px] font-semibold transition-colors hover:bg-chip">
-                    <Settings size={16} /> Notification Settings
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="relative">
-              <button onClick={() => toggle('user')} aria-expanded={menu === 'user'} aria-haspopup="menu" className={cx('flex h-8 items-center gap-2 rounded-full pl-1 pr-2', chip)}>
-                <span className="grid size-6 place-items-center rounded-full border-2 border-edge bg-[#3c3d41] text-[10px] text-white" aria-hidden>{ini}</span>
-                <span className="hidden max-w-[160px] truncate text-[14px] font-semibold sm:inline">{account.firstName}</span>
-                <span className="sr-only">Account menu for {name}</span>
-                <ChevronDown size={16} className={cx('text-muted-foreground transition-transform duration-200', menu === 'user' && 'rotate-180')} />
-              </button>
-              {menu === 'user' && (
-                <div onKeyDown={menuKeys} className={cx(pop, 'w-64')}>
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#3c3d41] text-[13px] font-semibold text-white" aria-hidden>{ini}</span>
-                    <div className="min-w-0">
-                      <p className="truncate text-[16px] font-semibold">{name}</p>
-                      <p className="truncate text-[14px] text-muted-foreground">{account.email}</p>
-                      <p className="mt-1 inline-flex rounded-full border border-edge px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{account.role}</p>
+              <div className="relative">
+                <button onClick={() => toggle('bell')} aria-label="Notifications" className={cx('relative grid size-8 place-items-center rounded-full', chip)}>
+                  <Bell size={16} />
+                  {unread > 0 && <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#f87171] text-[12px] leading-4 text-white">{unread}</span>}
+                </button>
+                {menu === 'bell' && (
+                  <div onKeyDown={menuKeys} className={cx(pop, 'w-[320px]')}>
+                    <div className="flex items-center justify-between px-4 py-3.5">
+                      <span className="text-[16px] font-semibold">Notifications</span>
+                      <button onClick={() => setNotes((ns) => ns.map((n) => ({ ...n, unread: false })))} className="text-[14px] font-medium transition-colors hover:text-muted-foreground">Mark all read</button>
                     </div>
-                  </div>
-                  <div className="py-1">
-                    {(
-                      [
-                        ['Profile', UserRound, 'settings-profile'],
-                        ['Settings', Settings, 'settings-app'],
-                      ] as const
-                    ).map(([l, Icon, r]) => (
-                      <button key={l} onClick={() => (go(r), setMenu(null))} className="flex w-full items-center gap-2 px-4 py-2 text-left text-[14px] transition-colors hover:bg-chip">
-                        <Icon size={14} /> {l}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t border-edge py-1">
-                    <button onClick={() => (setMenu(null), onLogout())} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px] text-[#f87171] transition-colors hover:bg-chip">
-                      <LogOut size={14} /> Logout
+                    <ul className="max-h-[300px] overflow-y-auto">
+                      {notes.map((n) => (
+                        <li key={n.id} className={cx('group relative flex gap-3 px-4 py-3 transition-colors', n.unread ? 'bg-chip' : 'hover:bg-chip/60')}>
+                          <span className={cx('mt-2 size-1.5 shrink-0 rounded-full', n.dot)} />
+                          <div className="min-w-0 flex-1 pr-14">
+                            <p className="text-[14px] font-semibold">{n.title}</p>
+                            <p className="text-[14px] leading-[22px] text-muted-foreground">{n.body}</p>
+                            <p className="mt-2 text-[12px] text-muted-foreground">{n.time}</p>
+                          </div>
+                          <div className="absolute right-4 top-3 flex gap-1">
+                            {n.unread && (
+                              <button aria-label="Mark as read" onClick={() => setNotes((ns) => ns.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))} className="grid size-6 place-items-center rounded-full bg-black/20 text-muted-foreground hover:text-foreground">
+                                <Check size={12} />
+                              </button>
+                            )}
+                            <button aria-label="Dismiss" onClick={() => setNotes((ns) => ns.filter((x) => x.id !== n.id))} className="grid size-6 place-items-center rounded-full bg-black/20 text-muted-foreground hover:text-foreground">
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                      {notes.length === 0 && <li className="px-4 py-10 text-center text-[13px] text-muted-foreground">You're all caught up</li>}
+                    </ul>
+                    <button onClick={() => (setMenu(null), go('settings-app'))} className="flex w-full items-center justify-center gap-2 border-t border-edge bg-black/10 py-3.5 text-[14px] font-semibold transition-colors hover:bg-chip">
+                      <Settings size={16} /> Notification Settings
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="relative">
+                <button onClick={() => toggle('user')} aria-expanded={menu === 'user'} aria-haspopup="menu" className={cx('flex h-8 items-center gap-2 rounded-full pl-1 pr-2', chip)}>
+                  <span className="grid size-6 place-items-center rounded-full border-2 border-edge bg-[#3c3d41] text-[10px] text-white" aria-hidden>{ini}</span>
+                  <span className="hidden max-w-[160px] truncate text-[14px] font-semibold sm:inline">{account.firstName}</span>
+                  <span className="sr-only">Account menu for {name}</span>
+                  <ChevronDown size={16} className={cx('text-muted-foreground transition-transform duration-200', menu === 'user' && 'rotate-180')} />
+                </button>
+                {menu === 'user' && (
+                  <div onKeyDown={menuKeys} className={cx(pop, 'w-64')}>
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#3c3d41] text-[13px] font-semibold text-white" aria-hidden>{ini}</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[16px] font-semibold">{name}</p>
+                        <p className="truncate text-[14px] text-muted-foreground">{account.email}</p>
+                        <p className="mt-1 inline-flex rounded-full border border-edge px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{account.role}</p>
+                      </div>
+                    </div>
+                    <div className="py-1">
+                      {(
+                        [
+                          ['Profile', UserRound, 'settings-profile'],
+                          ['Settings', Settings, 'settings-app'],
+                        ] as const
+                      ).map(([l, Icon, r]) => (
+                        <button key={l} onClick={() => (go(r), setMenu(null))} className="flex w-full items-center gap-2 px-4 py-2 text-left text-[14px] transition-colors hover:bg-chip">
+                          <Icon size={14} /> {l}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-edge py-1">
+                      <button onClick={() => (setMenu(null), onLogout())} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px] text-[#f87171] transition-colors hover:bg-chip">
+                        <LogOut size={14} /> Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </header>
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-3 bg-linear-to-b from-bg via-bg/80 to-transparent" />
+        </header>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-3 bg-linear-to-b from-bg via-bg/80 to-transparent" />
       </div>
       <CommandPalette role={account.role} open={palette} onClose={() => setPalette(false)} go={go} />
     </>
@@ -438,7 +469,7 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
 }
 
 // Lets pages (e.g. the Create User drawer) temporarily collapse the sidebar to its icon rail.
-export const ShellContext = createContext<{ setCollapsed: (v: boolean) => void; collapsed: boolean }>({ setCollapsed: () => {}, collapsed: false })
+export const ShellContext = createContext<{ setCollapsed: (v: boolean) => void; collapsed: boolean }>({ setCollapsed: () => { }, collapsed: false })
 export const useShell = () => useContext(ShellContext)
 
 export default function Shell({ account, route, go, dark, setDark, onLogout, children }: { account: Account; route: Route; go: (r: Route) => void; dark: boolean; setDark: (v: boolean) => void; onLogout: () => void; children: ReactNode }) {
@@ -488,70 +519,68 @@ export default function Shell({ account, route, go, dark, setDark, onLogout, chi
   }, [studio])
   return (
     <ShellContext.Provider value={{ collapsed, setCollapsed }}>
-    <NavigationContext.Provider value={{ route, go }}>
-    <div className="relative min-h-viewport bg-bg text-foreground">
-      {sidebarDimmer.rendered && (
-        <div
-          aria-hidden="true"
-          data-sidebar-dimmer={backdropMode}
-          className={cx(
-            backdropMode === 'fixed' ? 'fixed' : 'absolute',
-            'inset-0 z-30 bg-black/50 transition-opacity duration-200 lg:hidden',
-            sidebarDimmer.visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+      <NavigationContext.Provider value={{ route, go }}>
+        <div className="relative min-h-viewport bg-bg text-foreground">
+          {sidebarDimmer.rendered && (
+            <div
+              aria-hidden="true"
+              data-sidebar-dimmer={backdropMode}
+              className={cx(
+                backdropMode === 'fixed' ? 'fixed' : 'absolute',
+                'inset-0 z-30 bg-black/50 transition-opacity duration-200 lg:hidden',
+                sidebarDimmer.visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+              )}
+              onClick={() => setMobileOpen(false)}
+            />
           )}
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-      <TopBar
-        account={account}
-        route={route}
-        dark={dark}
-        setDark={setDark}
-        go={go}
-        onLogout={onLogout}
-        onMenu={() => (window.innerWidth >= 1024 ? setCollapsed((c) => !c) : setMobileOpen((o) => !o))}
-      />
-      <div
-        className="flex pt-[11px]"
-        style={{
-          paddingBottom: 'calc(15px + env(safe-area-inset-bottom))',
-          paddingLeft: 'calc(14px + env(safe-area-inset-left))',
-          paddingRight: 'calc(16px + env(safe-area-inset-right))',
-        }}
-      >
-        <div className="lg:mr-[16px]">
-          <Sidebar
-            role={account.role}
-            collapsed={collapsed}
-            onExpand={() => setCollapsed(false)}
+          <TopBar
+            account={account}
             route={route}
+            dark={dark}
+            setDark={setDark}
+            go={go}
             onLogout={onLogout}
-            go={(r) => {
-              go(r)
-              setMobileOpen(false)
-            }}
-            open={mobileOpen}
-            onClose={() => setMobileOpen(false)}
-            drawerAnim={drawerAnim}
-            drawerPos={drawerPos}
+            onMenu={() => (window.innerWidth >= 1024 ? setCollapsed((c) => !c) : setMobileOpen((o) => !o))}
           />
+          <div
+            className="flex pt-[11px]"
+            style={{
+              paddingBottom: 'calc(15px + env(safe-area-inset-bottom))',
+              paddingLeft: 'calc(14px + env(safe-area-inset-left))',
+              paddingRight: 'calc(16px + env(safe-area-inset-right))',
+            }}
+          >
+            <div className="lg:mr-[16px]">
+              <Sidebar
+                role={account.role}
+                collapsed={collapsed}
+                onExpand={() => setCollapsed(false)}
+                route={route}
+                onLogout={onLogout}
+                go={(r) => {
+                  go(r)
+                  setMobileOpen(false)
+                }}
+                open={mobileOpen}
+                onClose={() => setMobileOpen(false)}
+                drawerAnim={drawerAnim}
+                drawerPos={drawerPos}
+              />
+            </div>
+            <div className="shell-content-height flex min-w-0 flex-1 flex-col">
+              <main key={route} className="shell-main-enter w-full flex-1 pt-[14px]">
+                {children}
+              </main>
+              <footer className="mt-4 flex items-center justify-between rounded-xl border border-edge bg-nav px-5 py-3 text-[12px] text-muted-foreground">
+                <span>© 2026</span>
+                <span>
+                  by <span className="font-bold text-foreground">Lumière</span>
+                </span>
+              </footer>
+            </div>
+          </div>
         </div>
-        <div className="shell-content-height flex min-w-0 flex-1 flex-col">
-          <main key={route} className="shell-main-enter w-full flex-1 pt-[14px]">
-            {children}
-          </main>
-          <footer className="mt-4 flex items-center justify-between rounded-xl border border-edge bg-nav px-5 py-3 text-[12px] text-muted-foreground">
-            <span>
-              © 2026 <span className="mx-3">Lumière Dashboard</span>•<span className="ml-3">v1.0.0</span>
-            </span>
-            <span>
-              by <span className="font-bold text-foreground">Lumière</span>
-            </span>
-          </footer>
-        </div>
-      </div>
-    </div>
-    </NavigationContext.Provider>
+      </NavigationContext.Provider>
     </ShellContext.Provider>
   )
 }

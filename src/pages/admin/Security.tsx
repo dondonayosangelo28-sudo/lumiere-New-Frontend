@@ -1,9 +1,13 @@
+import { Menu } from '@base-ui/react/menu'
+import { useCloseOnOverlay, useOverlayContainer } from '../../components/overlay/OverlayLayer'
+import { downloadCsv } from '../../features/warehouse/modules/ReplenishmentDeficitsModule'
+import { toManilaYmd } from '../../dashboard/dashboardMetrics'
 import { useNotify } from '../../components/ui/Notifications'
 import StatCards from '../../components/dashboard/StatCards'
 import { DetailsDrawer } from './Accounts'
 import { currentSession as summarySession } from '../../auth/session'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
-import { Activity, Eye, ListChecks, Loader2, LockOpen, LogOut, MonitorSmartphone, ShieldAlert, TriangleAlert, UserX, CircleAlert, X } from 'lucide-react'
+import { Eye, FileSpreadsheet, Loader2, LockOpen, LogOut, MonitorSmartphone, MoreVertical, ShieldAlert, TriangleAlert, UserX, CircleAlert, X } from 'lucide-react'
 import { Badge, Button, Card, PageHeader, cx } from '../../components/ui/ui'
 import Modal from '../../components/overlay/Modal'
 import ConfirmAction from '../../components/admin/AccountConfirm'
@@ -22,7 +26,11 @@ import { countRecentFailedSignIns, isWithinFailedSignInWindow, lockedAccountRows
 const PER = 10
 const RESULTS: AttemptResult[] = ['Success', 'Failed', 'Blocked']
 
-type TabKey = 'activity' | 'locked' | 'sessions' | 'policy'
+type TabKey = 'activity' | 'locked' | 'sessions'
+
+export function normalizeSecurityTab(value?: string): TabKey {
+  return value === 'locked' || value === 'sessions' ? value : 'activity'
+}
 
 function loginReason(a: LoginAttempt) {
   if (a.result === 'Success') return 'Signed in successfully.'
@@ -42,7 +50,7 @@ function loginReason(a: LoginAttempt) {
 const scrollWrap = 'overflow-x-auto'
 const th = 'px-4 py-3.5 font-semibold whitespace-nowrap'
 
-type SecurityPageProps = { account: Account; go: (r: Route) => void; onLogout: () => void; initialTab?: TabKey; initialFailedLast24h?: boolean }
+type SecurityPageProps = { account: Account; go: (r: Route) => void; onLogout: () => void; initialTab?: string; initialFailedLast24h?: boolean }
 
 export default function SecurityPage(props: SecurityPageProps) {
   const { account, go } = props
@@ -53,7 +61,10 @@ export default function SecurityPage(props: SecurityPageProps) {
 function SecurityBody({ account, go, onLogout, initialTab = 'activity', initialFailedLast24h = false }: SecurityPageProps) {
   useSyncExternalStore(subscribeAccounts, accountsVersion)
   const now = useNow(1000)
-  const [tab, setTab] = useState<TabKey>(initialTab)
+  const [tab, setTab] = useState<TabKey>(() => normalizeSecurityTab(initialTab))
+  useEffect(() => {
+    setTab(normalizeSecurityTab(initialTab))
+  }, [initialTab])
   const setFlash = useNotify()
   const [viewingId, setViewingId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -78,7 +89,6 @@ function SecurityBody({ account, go, onLogout, initialTab = 'activity', initialF
     { key: 'activity', label: 'Login Activity' },
     { key: 'locked', label: 'Locked Accounts', count: locked.length },
     { key: 'sessions', label: 'Active Sessions', count: sessions.length },
-    { key: 'policy', label: 'Security Policy' },
   ]
   const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const i = tabs.findIndex((t) => t.key === tab)
@@ -91,7 +101,7 @@ function SecurityBody({ account, go, onLogout, initialTab = 'activity', initialF
 
   return (
     <>
-      <PageHeader onHome={() => go('overview')} crumbs={['Dashboard', 'Security']} title="Security" subtitle="Monitor sign-ins, locked accounts, and sessions, and review the access policy" />
+      <PageHeader onHome={() => go('overview')} crumbs={['Dashboard', 'Security']} title="Security" subtitle="Monitor sign-ins, locked accounts, and sessions" />
       <StatCards key={`${summarySession()?.accountId}-${'security'}`} userId={summarySession()?.accountId ?? 0} groupId={'security'} preserveDesign gridCols="grid grid-cols-1 gap-4 sm:grid-cols-3" data={[
         { id: 'temporarily-locked-accounts', title: 'Temporarily Locked Accounts', icon: ShieldAlert, value: locked.length },
         { id: 'failed-logins-last-24-hours', title: 'Failed Logins (Last 24 Hours)', icon: TriangleAlert, value: failed24 },
@@ -128,9 +138,6 @@ function SecurityBody({ account, go, onLogout, initialTab = 'activity', initialF
         <section id="sec-panel-sessions" role="tabpanel" aria-labelledby="sec-tab-sessions" hidden={tab !== 'sessions'}>
           <ActiveSessions sessions={sessions} loading={loading} onLogout={onLogout} setFlash={setFlash} />
         </section>
-        <section id="sec-panel-policy" role="tabpanel" aria-labelledby="sec-tab-policy" hidden={tab !== 'policy'}>
-          <PolicyPanel />
-        </section>
       </div>
       <DetailsDrawer
         account={st.accounts.find((a) => a.id === viewingId) ?? null}
@@ -145,6 +152,27 @@ function SecurityBody({ account, go, onLogout, initialTab = 'activity', initialF
 
 /* ---------- Login Activity ---------- */
 
+export const LOGIN_ACTIVITY_CSV_HEADERS = [
+  'Date and Time (GMT+8)',
+  'Account / Email',
+  'Role',
+  'Result',
+  'Reason',
+]
+
+export function buildLoginActivityCsvRows(rows: readonly LoginAttempt[], accounts: readonly Account[]) {
+  return rows.map((a) => {
+    const acct = a.accountId !== null ? accounts.find((x) => x.id === a.accountId) : undefined
+    return [
+      fmtFull(a.at),
+      acct ? `${accountName(acct)} (${a.email})` : a.email,
+      a.role ?? 'Unknown',
+      a.result,
+      loginReason(a),
+    ]
+  })
+}
+
 function LoginActivity({ attempts, loading, now, initialFailedLast24h }: { attempts: LoginAttempt[]; loading: boolean; now: number; initialFailedLast24h: boolean }) {
   const [query, setQuery] = useState('')
   const [from, setFrom] = useState('')
@@ -153,6 +181,9 @@ function LoginActivity({ attempts, loading, now, initialFailedLast24h }: { attem
   // Rolling window shared with the Failed Logins count, opened from the dashboard.
   const [last24h, setLast24h] = useState(initialFailedLast24h)
   const [page, setPage] = useState(1)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const portalContainer = useOverlayContainer()
+  useCloseOnOverlay(() => setMenuOpen(false))
   const q = useDebounced(query.trim().toLowerCase())
   const accounts = getState().accounts
 
@@ -175,6 +206,11 @@ function LoginActivity({ attempts, loading, now, initialFailedLast24h }: { attem
   const shown = rows.slice((safePage - 1) * PER, safePage * PER)
   const filtered = !!(query || from || to || result || last24h)
   const reset = () => (setQuery(''), setFrom(''), setTo(''), setResult(''), setLast24h(false), setPage(1))
+  const exportCsv = () => {
+    if (loading || rows.length === 0) return
+    downloadCsv(`login-activity-${toManilaYmd(now)}.csv`, LOGIN_ACTIVITY_CSV_HEADERS, buildLoginActivityCsvRows(rows, accounts))
+    setMenuOpen(false)
+  }
 
   return (
     <>
@@ -214,11 +250,51 @@ function LoginActivity({ attempts, loading, now, initialFailedLast24h }: { attem
                 <th scope="col" className={th}>Role</th>
                 <th scope="col" className={th}>Result</th>
                 <th scope="col" className={th}>Reason</th>
+                <th scope="col" className="w-12 px-4 py-2 text-right font-semibold">
+                  <Menu.Root
+                    modal={false}
+                    open={menuOpen}
+                    onOpenChange={(next) => {
+                      if (!loading && rows.length > 0) setMenuOpen(next)
+                      else if (!next) setMenuOpen(false)
+                    }}
+                  >
+                    <Menu.Trigger
+                      type="button"
+                      aria-label="Login activity actions"
+                      disabled={loading || rows.length === 0}
+                      className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-fg/[0.08] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:cursor-default disabled:opacity-40"
+                    >
+                      <MoreVertical size={16} aria-hidden />
+                    </Menu.Trigger>
+                    <Menu.Portal container={portalContainer}>
+                      <Menu.Positioner
+                        sideOffset={8}
+                        align="end"
+                        collisionPadding={8}
+                        className="pointer-events-auto z-[100] max-w-[calc(100vw-16px)]"
+                      >
+                        <Menu.Popup className="w-52 overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl outline-none animate-pop">
+                          <Menu.Item
+                            onClick={exportCsv}
+                            className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left outline-none transition-colors hover:bg-elev data-highlighted:bg-elev focus-visible:bg-elev"
+                          >
+                            <FileSpreadsheet size={18} className="shrink-0 text-blue-400" aria-hidden />
+                            <span>
+                              <span className="block text-[14px] font-semibold">Export as CSV</span>
+                              <span className="block text-[12px] text-muted-foreground">Download CSV</span>
+                            </span>
+                          </Menu.Item>
+                        </Menu.Popup>
+                      </Menu.Positioner>
+                    </Menu.Portal>
+                  </Menu.Root>
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <SkeletonRows cols={5} />
+                <SkeletonRows cols={6} />
               ) : (
                 shown.map((a) => {
                   const acct = a.accountId !== null ? accounts.find((x) => x.id === a.accountId) : undefined
@@ -232,12 +308,13 @@ function LoginActivity({ attempts, loading, now, initialFailedLast24h }: { attem
                       <td className="px-4">{a.role ?? <span className="text-muted-foreground">Unknown</span>}</td>
                       <td className="px-4"><Badge tone={resultTone(a.result)}>{a.result}</Badge></td>
                       <td className="px-4 text-muted-foreground">{loginReason(a)}</td>
+                      <td className="w-12 px-4 py-3.5" />
                     </tr>
                   )
                 })
               )}
               {!loading && rows.length === 0 && (
-                <EmptyRow cols={5}>
+                <EmptyRow cols={6}>
                   <p>{filtered ? 'No login activity matches your search or filters.' : 'No login activity has been recorded yet.'}</p>
                   {filtered && <button type="button" onClick={reset} className="mt-3 rounded-full border border-edge px-3 py-1.5 text-[13px] font-semibold text-foreground hover:bg-fg/[0.08]">Reset Filters</button>}
                 </EmptyRow>
@@ -356,7 +433,7 @@ function ActiveSessions({ sessions, loading, onLogout, setFlash }: { sessions: S
                       <td className="px-4">
                         <div className="flex justify-end">
                           {isCurrent ? (
-                            <button type="button" onClick={onLogout} className={cx(ghostBtn, 'border border-edge')}><LogOut size={16} aria-hidden /> Log out</button>
+                            <button type="button" onClick={() => setEndingId(s.id)} className={cx(ghostBtn, 'border border-edge')}><LogOut size={16} aria-hidden /> Log out</button>
                           ) : (
                             <button type="button" onClick={() => setEndingId(s.id)} aria-label={`End session for ${accountName(a)} on ${s.device}, started ${fmtFull(s.startedAt)}`} className={cx(ghostBtn, 'border border-edge text-danger')}><UserX size={16} aria-hidden /> End Session</button>
                           )}
@@ -375,6 +452,8 @@ function ActiveSessions({ sessions, loading, onLogout, setFlash }: { sessions: S
         key={endingId ?? 'none'}
         session={ending}
         account={endingAcct}
+        isCurrent={!!ending && ending.id === currentId}
+        onLogout={onLogout}
         onClose={() => setEndingId(null)}
         onResult={(f) => (setEndingId(null), setFlash(f))}
       />
@@ -382,78 +461,69 @@ function ActiveSessions({ sessions, loading, onLogout, setFlash }: { sessions: S
   )
 }
 
-function EndSessionDialog({ session, account, onClose, onResult }: { session: Session | null; account?: Account; onClose: () => void; onResult: (f: Flash) => void }) {
+function EndSessionDialog({
+  session,
+  account,
+  isCurrent,
+  onLogout,
+  onClose,
+  onResult,
+}: {
+  session: Session | null
+  account?: Account
+  isCurrent: boolean
+  onLogout: () => void | Promise<void>
+  onClose: () => void
+  onResult: (f: Flash) => void
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const pending = useRef(false)
   // Keep the details visible if the session disappears while the dialog is open.
-  const kept = useRef<{ session: Session; account?: Account } | null>(null)
-  if (session) kept.current = { session, account }
+  const kept = useRef<{ session: Session; account?: Account; isCurrent: boolean } | null>(null)
+  if (session) kept.current = { session, account, isCurrent }
   const k = kept.current
   if (!k) return null
   const name = k.account ? accountName(k.account) : 'this account'
+  const device = k.session.device === 'Unknown' ? 'Unknown device' : k.session.device
   const run = async () => {
     if (pending.current) return
     pending.current = true
     setBusy(true)
     setError('')
     try {
-      await authService.endSession(k.session.id)
-      onResult({ tone: 'success', text: `Ended the ${k.session.device} session for ${name}. Their other sessions were not affected.` })
+      if (k.isCurrent) {
+        await Promise.resolve(onLogout())
+        onClose()
+      } else {
+        await authService.endSession(k.session.id)
+        onResult({ tone: 'success', text: `Ended the ${device} session for ${name}. Their other sessions were not affected.` })
+      }
     } catch (e) {
-      if (isAuthError(e) && e.code === 'SESSION_NOT_ACTIVE') return onResult({ tone: 'error', text: `${authMessage(e)} Nothing was changed.` })
       setError(authMessage(e))
       pending.current = false
       setBusy(false)
     }
   }
   return (
-    <Modal open onClose={() => !busy && onClose()} title="End this session?">
+    <Modal open onClose={() => !busy && onClose()} title={k.isCurrent ? 'Log out of this session?' : 'End this session?'}>
       <p className="text-[14px] leading-6 text-muted-foreground">
-        End the <b className="text-foreground">{k.session.device}</b> session for <b className="text-foreground">{name}</b>{k.account && <> ({k.account.email})</>}, started {fmtFull(k.session.startedAt)}. Only this session ends; if it is open, it returns to the login screen with an explanation.
+        {k.isCurrent ? (
+          "You'll be signed out on this device."
+        ) : (
+          <>
+            End the <b className="text-foreground">{device}</b> session for <b className="text-foreground">{name}</b>{k.account && <> ({k.account.email})</>}, started {fmtFull(k.session.startedAt)}. Only this session ends; if it is open, it returns to the login screen with an explanation.
+          </>
+        )}
       </p>
       {error && <p role="alert" className="mt-4 flex gap-2 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-[13px]"><CircleAlert size={16} className="mt-0.5 shrink-0 text-red-400" aria-hidden />{error}</p>}
       <div className="mt-6 flex flex-wrap justify-end gap-2">
         <button type="button" disabled={busy} onClick={onClose} className="h-10 rounded-full px-4 text-[14px] font-semibold transition-colors hover:bg-fg/[0.08] disabled:opacity-50">Cancel</button>
         <button type="button" disabled={busy} aria-busy={busy} onClick={run} className="flex h-10 items-center gap-2 rounded-full bg-danger px-4 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-70">
           {busy && <Loader2 size={16} className="animate-spin" aria-hidden />}
-          {busy ? 'Ending…' : 'End Session'}
+          {busy ? 'Logging out…' : 'Log out'}
         </button>
       </div>
     </Modal>
-  )
-}
-
-/* ---------- Security Policy ---------- */
-
-function PolicyPanel() {
-  const rules: [string, string][] = [
-    ['Passwords', `${P.passwordMinLength}–${P.passwordMaxLength} characters for newly set passwords.`],
-    ['Seeded demo credentials', 'The five seeded demo accounts keep their documented demo password until it is changed; any password set afterwards must meet the policy above.'],
-    ['Login lock', `${P.loginAttemptLimit} consecutive incorrect passwords lock the account for ${P.lockDurationMs / 60_000} minutes.`],
-    ['Session inactivity', `Sessions time out after ${P.sessionIdleTimeoutMs / 60_000} minutes of inactivity.`],
-    ['Recovery code (OTP)', `Six digits, expires after ${P.otpTtlMs / 60_000} minutes, and allows ${P.otpMaxAttempts} incorrect attempts.`],
-    ['Code resend cooldown', `${P.otpResendCooldownMs / 1000} seconds between resend requests.`],
-    ['Code resend limit', `${P.otpMaxResends} resends within ${P.recoveryRequestWindowMs / 60_000} minutes.`],
-    ['Recovery requests', `${P.recoveryRequestLimit} initial recovery requests per email within ${P.recoveryRequestWindowMs / 60_000} minutes.`],
-    ['Recovery authorization', `${P.recoveryAuthTtlMs / 60_000} minutes to set a new password after the code is verified.`],
-  ]
-  return (
-    <Card className="p-5">
-      <div className="flex items-center gap-2">
-        <ListChecks size={18} aria-hidden />
-        <h2 className="text-[16px] font-semibold">Security policy</h2>
-        <Badge tone="neutral">Read-only</Badge>
-      </div>
-      <p className="mt-1 text-[14px] text-muted-foreground">These prototype rules are fixed and cannot be edited here. Sign-in does not use a one-time code.</p>
-      <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
-        {rules.map(([k, v]) => (
-          <div key={k} className="rounded-lg bg-fg/[0.05] p-3">
-            <dt className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground"><Activity size={13} aria-hidden />{k}</dt>
-            <dd className="mt-1 text-[14px]">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </Card>
   )
 }

@@ -1,4 +1,5 @@
 import * as opsStore from '../../operations/store';
+import { recordWorkflowAudit } from '../../auth/crossRoleAudit';
 import { isVenueLocation, type VenueLocation } from '../../operations/venue-location';
 import { validateBudget } from './pitch-editor/budget';
 import { assets, themes, type Availability, type Brief, type Project } from './model';
@@ -494,6 +495,16 @@ export async function previewStudio(user: StudioUser, body?: Action): Promise<Pr
   const remaining = records.filter(record => record !== existing);
   if (body.action === 'delete') {
     write(user, remaining);
+    if (existing) {
+      recordWorkflowAudit({
+        actor: { email: user.email, name: user.name, role: 'Event Manager' },
+        fallbackRole: 'Event Manager',
+        action: 'Pitch deleted',
+        target: { type: 'pitch', id: existing.project.id, label: `${existing.project.brief.title || 'Untitled pitch'} (${existing.project.id})` },
+        description: `Deleted pitch "${existing.project.brief.title || 'Untitled pitch'}" (status: ${existing.project.status}, rev ${existing.project.revision}).`,
+        operationId: `em-delete:${existing.project.id}`,
+      });
+    }
     return;
   }
 
@@ -529,15 +540,33 @@ export async function previewStudio(user: StudioUser, body?: Action): Promise<Pr
     project = { ...existing.project, status: 'approved', revision: existing.project.revision + 1, updatedAt: now, approvedAt: now, approvalNote: note };
     action = 'Client approval recorded';
     const entry = { actor: user.name, action, at: now, revision: project.revision };
-    return executeApprovalHandoff(user, {
+    const approved = await executeApprovalHandoff(user, {
       project,
       auditEntry: entry,
       eventManagerSaved: false,
       warehouseSaved: false,
     });
+    recordWorkflowAudit({
+      actor: { email: user.email, name: user.name, role: 'Event Manager' },
+      fallbackRole: 'Event Manager',
+      action: 'Pitch approved',
+      target: { type: 'pitch', id: approved.id, label: `${approved.brief.title || 'Untitled pitch'} (${approved.id})` },
+      description: `Recorded client approval for pitch "${approved.brief.title || 'Untitled pitch'}" (rev ${approved.revision}).`,
+      changes: [{ field: 'status', from: existing.project.status, to: 'approved' }],
+      operationId: `em-approve:${approved.id}:${approved.revision}`,
+    });
+    return approved;
   }
   const entry = { actor: user.name, action, at: now, revision: project.revision };
   write(user, [{ project, audit: [entry, ...(existing?.audit ?? [])] }, ...remaining]);
+  recordWorkflowAudit({
+    actor: { email: user.email, name: user.name, role: 'Event Manager' },
+    fallbackRole: 'Event Manager',
+    action: existing ? 'Pitch updated' : 'Pitch created',
+    target: { type: 'pitch', id: project.id, label: `${project.brief.title || 'Untitled pitch'} (${project.id})` },
+    description: `${existing ? 'Updated' : 'Created'} pitch "${project.brief.title || 'Untitled pitch'}" (${project.status}, rev ${project.revision}).`,
+    operationId: `em-save:${project.id}:${project.revision}`,
+  });
   return project;
 }
 

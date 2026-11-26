@@ -3,7 +3,7 @@ import StatCards from '../../components/dashboard/StatCards'
 import { currentSession as summarySession } from '../../auth/session'
 import Dropdown from '../../components/ui/Dropdown'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Ban, CalendarClock, ChevronDown, CircleAlert, CircleCheck, Eye, KeyRound, Loader2, LockOpen, Plus, RefreshCw, RotateCcw, Search, Send, SquarePen, UserCheck, UserX, Users as UsersIcon } from 'lucide-react'
+import { Ban, CalendarClock, ChevronDown, CircleAlert, CircleCheck, Eye, KeyRound, Loader2, Plus, RefreshCw, RotateCcw, Search, Send, SquarePen, UserCheck, UserX, Users as UsersIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Badge, Card, PageHeader, cx } from '../../components/ui/ui'
 import Modal from '../../components/overlay/Modal'
@@ -27,7 +27,7 @@ const fmtDateTime = (t: number) => new Date(t).toLocaleString([], { year: 'numer
 type ActionKey = 'view' | 'edit' | 'resend' | ConfirmKey
 interface ActionDef { key: ActionKey; label: string; icon: LucideIcon; danger?: boolean; disabled?: string }
 
-function actionsFor(a: Account, actorId: number, locked: boolean): ActionDef[] {
+function actionsFor(a: Account, actorId: number): ActionDef[] {
   const base: ActionDef[] = [{ key: 'view', label: 'View', icon: Eye }, { key: 'edit', label: 'Edit Details', icon: SquarePen }]
   if (a.deletedAt) return [...base, { key: 'restore', label: 'Restore Account', icon: RotateCcw }]
   if (a.status === 'Pending Activation') {
@@ -37,7 +37,6 @@ function actionsFor(a: Account, actorId: number, locked: boolean): ActionDef[] {
     return [
       ...base,
       { key: 'reset', label: 'Send Password Reset', icon: KeyRound },
-      ...(locked ? [{ key: 'unlock' as const, label: 'Unlock Account', icon: LockOpen }] : []),
       { key: 'deactivate', label: 'Deactivate', icon: UserX, danger: true, disabled: deactivationBlock(a, actorId) ?? undefined },
     ]
   }
@@ -45,13 +44,19 @@ function actionsFor(a: Account, actorId: number, locked: boolean): ActionDef[] {
 }
 
 function StatusBadges({ a, now }: { a: Account; now: number }) {
-  const expired = invitationCondition(a.id, now) === 'Expired Invitation'
+  const expired = a.status === 'Pending Activation' && invitationCondition(a.id, now) === 'Expired Invitation'
   const locked = lockInfo(a.id, now).locked
+  const showOnlyLocked = a.status === 'Active' && locked
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <Badge tone={a.status === 'Active' ? 'success' : a.status === 'Pending Activation' ? 'warning' : 'neutral'}>{a.status}</Badge>
-      {expired && <Badge tone="danger">Invitation expired</Badge>}
-      {locked && <Badge tone="danger">Locked</Badge>}
+      {expired ? (
+        <Badge tone="danger">Invitation expired</Badge>
+      ) : showOnlyLocked ? (
+        <Badge tone="danger">Locked</Badge>
+      ) : (
+        <Badge tone={a.status === 'Active' ? 'success' : a.status === 'Pending Activation' ? 'warning' : 'neutral'}>{a.status}</Badge>
+      )}
+      {locked && !showOnlyLocked && <Badge tone="danger">Locked</Badge>}
     </span>
   )
 }
@@ -179,7 +184,7 @@ export default function AccountsPage({ actor, onHome, openAccountId, onOpened, d
         { id: 'total-users', title: 'Total Users', icon: UsersIcon, value: counts.total },
         ...(deleted ? [{ id: 'deleted-users', title: 'Deleted Users', icon: Trash2, value: counts.deleted }] : []),
         { id: 'active-users', title: 'Active Users', icon: UserCheck, value: counts.active },
-        ...(!deleted ? [{ id: 'pending-activation', title: 'Pending Activation', icon: CalendarClock, value: counts.pending }] : []),
+        ...(!deleted ? [{ id: 'pending-activation', title: 'Pending Users', icon: CalendarClock, value: counts.pending }] : []),
         { id: 'inactive-users', title: 'Inactive Users', icon: Ban, value: counts.inactive },
       ]} />
 
@@ -223,7 +228,7 @@ export default function AccountsPage({ actor, onHome, openAccountId, onOpened, d
                 <SkeletonRows cols={7} />
               ) : (
                 shown.map((a) => {
-                  const acts = actionsFor(a, actor.id, lockInfo(a.id, now).locked)
+                  const acts = actionsFor(a, actor.id)
                   return (
                     <tr key={a.id} className="animate-fade-up transition-colors duration-150 hover:bg-fg/[0.04]">
                       <td className="px-4 py-4">
@@ -366,19 +371,9 @@ function CreateDrawer({ open, onClose, onCreated }: { open: boolean; onClose: ()
       open={open}
       onClose={close}
       title="Create Account"
-      compact
       subtitle="The person sets their own password from the invitation."
-      footer={
-        <>
-          <button type="button" onClick={close} disabled={busy} className="h-10 rounded-full px-4 text-[14px] font-semibold transition-colors hover:bg-fg/[0.08] disabled:opacity-50">Cancel</button>
-          <button type="submit" form="create-account-form" disabled={busy} aria-busy={busy} className="flex h-10 items-center gap-2 rounded-full bg-invert px-4 text-[14px] font-medium text-invert-fg transition-opacity hover:opacity-90 disabled:opacity-70">
-            {busy && <Loader2 size={16} className="animate-spin" aria-hidden />}
-            {busy ? 'Creating account…' : 'Create Account & Send Invite'}
-          </button>
-        </>
-      }
     >
-      <form id="create-account-form" noValidate onSubmit={(e) => (e.preventDefault(), void submit())} className="flex flex-col gap-5">
+      <form noValidate onSubmit={(e) => (e.preventDefault(), void submit())} className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><Lbl htmlFor="ca-first" required>First Name</Lbl><input id="ca-first" autoComplete="off" value={form.first} onChange={(e) => set('first', e.target.value)} placeholder="Enter first name" className={fieldCls} {...inv('first')} /><Err id="first" /></div>
           <div><Lbl htmlFor="ca-last" required>Last Name</Lbl><input id="ca-last" autoComplete="off" value={form.last} onChange={(e) => set('last', e.target.value)} placeholder="Enter last name" className={fieldCls} {...inv('last')} /><Err id="last" /></div>
@@ -399,6 +394,13 @@ function CreateDrawer({ open, onClose, onCreated }: { open: boolean; onClose: ()
             {formError}
           </div>
         )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={close} disabled={busy} className="h-10 rounded-full px-4 text-[14px] font-semibold transition-colors hover:bg-fg/[0.08] disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={busy} aria-busy={busy} className="flex h-10 items-center gap-2 rounded-full bg-invert px-4 text-[14px] font-medium text-invert-fg transition-opacity hover:opacity-90 disabled:opacity-70">
+            {busy && <Loader2 size={16} className="animate-spin" aria-hidden />}
+            {busy ? 'Creating account…' : 'Create Account & Send Invite'}
+          </button>
+        </div>
       </form>
     </Drawer>
   )
@@ -406,10 +408,10 @@ function CreateDrawer({ open, onClose, onCreated }: { open: boolean; onClose: ()
 
 /* ---------- Details and editing ---------- */
 
-export function DetailsDrawer({ account, editing, setEditing, onClose, onSaved }: { account: Account | null; editing: boolean; setEditing: (v: boolean) => void; onClose: () => void; onSaved: (text: string) => void }) {
+export function DetailsDrawer({ account, editing, onClose, onSaved }: { account: Account | null; editing: boolean; setEditing?: (v: boolean) => void; onClose: () => void; onSaved: (text: string) => void }) {
   if (editing) return (
-    <Drawer open={!!account} onClose={onClose} title="Edit Account" subtitle={account ? `${accountName(account)} · ${account.email}` : undefined}>
-      {account && <EditForm key={account.id} account={account} onCancel={() => setEditing(false)} onSaved={(text) => { setEditing(false); onSaved(text) }} />}
+    <Drawer open={!!account} onClose={onClose} eyebrow="EDIT ACCOUNT" title={account ? accountName(account) : 'Edit Account'} subtitle={account?.email}>
+      {account && <EditForm key={account.id} account={account} onCancel={onClose} onSaved={(text) => { onClose(); onSaved(text) }} />}
     </Drawer>
   )
   return (
@@ -421,17 +423,13 @@ export function DetailsDrawer({ account, editing, setEditing, onClose, onSaved }
 
 function DetailsBody({ account }: { account: Account }) {
   const name = accountName(account)
-  const lock = lockInfo(account.id)
   const details: [string, React.ReactNode][] = [
-    ['Name', name],
-    ['Email', account.email || '—'],
     ['Username', account.email.split('@')[0] || '—'],
     ['Role', account.role],
     ['Status', <Badge key="status" tone={account.deletedAt ? 'danger' : account.status === 'Active' ? 'success' : account.status === 'Pending Activation' ? 'warning' : 'neutral'}>{account.deletedAt ? 'Deleted' : account.status}</Badge>],
-    ['Security', lock.locked ? `Locked until ${fmtDateTime(lock.lockedUntil!)}` : 'Not locked'],
+    ['Last Login', account.lastLoginAt ? fmtDateTime(account.lastLoginAt) : 'Never'],
     ['Created', account.createdAt ? fmtDateTime(account.createdAt) : '—'],
     ['Activated', account.activatedAt ? fmtDateTime(account.activatedAt) : '—'],
-    ['Last Login', account.lastLoginAt ? fmtDateTime(account.lastLoginAt) : 'Never'],
   ]
   return (
     <div>
@@ -439,7 +437,7 @@ function DetailsBody({ account }: { account: Account }) {
         <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full border border-line bg-elev text-base font-semibold text-foreground">{initials(name)}</span>
         <div className="min-w-0">
           <p className="break-words text-sm font-bold text-foreground">{name}</p>
-          <p className="mt-0.5 break-all text-xs text-muted-foreground">{account.email}</p>
+          <p className="mt-0.5 break-all text-xs text-muted-foreground">{account.email || '—'}</p>
         </div>
       </div>
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-elev p-3">

@@ -1,7 +1,7 @@
 import type { Account, AuditEvent } from './store'
 import { dayStart, dayEnd } from './manilaTime'
 
-export const emptyAuditFilters = { username: '', email: '', firstName: '', lastName: '', from: '', to: '' }
+export const emptyAuditFilters = { username: '', email: '', firstName: '', lastName: '', role: '', action: '', from: '', to: '' }
 export type AuditFilters = typeof emptyAuditFilters
 
 export function auditDateError(filters: AuditFilters) {
@@ -18,6 +18,8 @@ export function filterAuditEvents(events: readonly AuditEvent[], _accounts: read
     const parts = event.actor.name.trim().split(/\s+/)
     const email = event.actor.email ?? ''
     return event.at >= from && event.at <= to
+      && (!filters.role || event.actorRole === filters.role)
+      && (!filters.action || event.action === filters.action)
       && contains(`${event.actor.name} ${email.split('@')[0]}`, filters.username)
       && contains(email, filters.email)
       && contains(event.actor.firstName ?? parts[0] ?? '', filters.firstName)

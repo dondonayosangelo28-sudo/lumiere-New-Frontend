@@ -167,11 +167,45 @@ export type AuditAction =
   | 'Password changed'
   | 'Account locked'
   | 'Account unlocked'
+  | 'Pitch created'
+  | 'Pitch updated'
+  | 'Pitch approved'
+  | 'Pitch deleted'
+  | 'Mood board created'
+  | 'Mood board updated'
+  | 'Mood board deleted'
+  | 'Approval published'
+  | 'Stock allocated'
+  | 'Dispatch batch created'
+  | 'Dispatch batch updated'
+  | 'Dispatch batch stage updated'
+  | 'Dispatch batch deleted'
+  | 'Loading checklist submitted'
+  | 'Venue arrival confirmed'
+  | 'Warehouse arrival confirmed'
+  | 'Return count submitted'
+  | 'Return checklist submitted'
+  | 'Warehouse accountability closed'
+  | 'Vendor created'
+  | 'Vendor updated'
+  | 'Vendor deleted'
+  | 'Acquisition created'
+  | 'Acquisition received'
+  | 'Production job updated'
+  | 'Incident reported'
 
 export const AUDIT_ACTIONS: AuditAction[] = [
   'Login succeeded', 'Login failed', 'Login blocked', 'Logout', 'Session expired', 'Session ended by admin',
   'Account created', 'Invitation resent', 'Invitation replaced', 'Account activated', 'Account edited', 'Account deactivated', 'Account deleted', 'Account restored', 'Account reactivated',
   'Account locked', 'Account unlocked', 'Password reset requested', 'OTP verified', 'OTP verification failed', 'Password reset completed', 'Password changed',
+  'Pitch created', 'Pitch updated', 'Pitch approved', 'Pitch deleted',
+  'Mood board created', 'Mood board updated', 'Mood board deleted',
+  'Approval published', 'Stock allocated',
+  'Dispatch batch created', 'Dispatch batch updated', 'Dispatch batch stage updated', 'Dispatch batch deleted',
+  'Loading checklist submitted', 'Venue arrival confirmed', 'Warehouse arrival confirmed', 'Return count submitted', 'Return checklist submitted', 'Warehouse accountability closed',
+  'Vendor created', 'Vendor updated', 'Vendor deleted',
+  'Acquisition created', 'Acquisition received',
+  'Production job updated', 'Incident reported',
 ]
 
 export interface AuditChange {
@@ -179,6 +213,21 @@ export interface AuditChange {
   from: string
   to: string
 }
+
+export type AuditTargetType =
+  | 'account'
+  | 'session'
+  | 'system'
+  | 'pitch'
+  | 'mood-board'
+  | 'order'
+  | 'inventory'
+  | 'acquisition'
+  | 'vendor'
+  | 'production'
+  | 'dispatch'
+  | 'rental'
+  | 'incident'
 
 export interface AuditEvent {
   id: string
@@ -189,7 +238,7 @@ export interface AuditEvent {
   /** Role at the time of the event. */
   actorRole: ActorRole
   action: AuditAction
-  target: { type: 'account' | 'session' | 'system'; id: string; label: string }
+  target: { type: AuditTargetType; id: string; label: string }
   result: AttemptResult
   description: string
   changes?: AuditChange[]
@@ -531,12 +580,16 @@ export function recordAudit(
   const operationId = input.operationId ?? auditOperation ?? randomId('op')
   const existing = draft.audit.find((event) => event.operationId === operationId && event.action === input.action && event.target.type === input.target.type && event.target.id === input.target.id)
   if (existing) return existing
+  const fallbackName = (input.actor as { name?: string }).name?.trim()
+  const fallbackEmail = (input.actor as { email?: string | null }).email ?? null
   const event: AuditEvent = {
     id: randomId('evt'),
     operationId,
     correlationId: input.correlationId ?? operationId,
     at: now,
-    actor: a ? { accountId: a.id, name: accountName(a), email: a.email, firstName: a.firstName, lastName: a.lastName } : { accountId: null, name: input.actor.role ?? 'System', email: null },
+    actor: a
+      ? { accountId: a.id, name: accountName(a), email: a.email, firstName: a.firstName, lastName: a.lastName }
+      : { accountId: null, name: fallbackName || (input.actor.role ?? 'System'), email: fallbackEmail },
     actorRole: a ? (input.actor.role ?? a.role) : (input.actor.role ?? 'System'),
     action: input.action,
     target: { ...input.target, label: scrub(input.target.label) },

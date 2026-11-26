@@ -124,7 +124,7 @@ function csvEscape(val: string | number | undefined): string {
   return str
 }
 
-function downloadCsv(filename: string, headers: string[], rows: (string | number | undefined)[][]) {
+export function downloadCsv(filename: string, headers: string[], rows: (string | number | undefined)[][]) {
   if (typeof window === "undefined") return
   const lines = [
     headers.map(csvEscape).join(","),

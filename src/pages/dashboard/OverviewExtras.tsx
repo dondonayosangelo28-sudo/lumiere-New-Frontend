@@ -10,11 +10,79 @@ import type { Account } from '../../auth/store'
 import { canAccess } from '../../auth/roleConfig'
 import Modal from '../../components/overlay/Modal'
 import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { addDaysToYmd, toManilaYmd } from '../../dashboard/dashboardMetrics'
 
-const NOW = new Date(2026, 9, 20)
-const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
-const same = (a: Date, b: Date) => a.getTime() === b.getTime()
-const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+export type DashboardDateRange = {
+  preset: string
+  fromYmd: string
+  toYmd: string
+  label: string
+}
+
+const parseYmd = (ymd: string) => {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return { y, m: m - 1, d }
+}
+const toYmd = (y: number, m: number, d: number) =>
+  `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+const fmtYmd = (ymd: string) => {
+  const { y, m, d } = parseYmd(ymd)
+  return new Date(Date.UTC(y, m, d)).toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+}
+const monthLabel = (y: number, m: number) =>
+  new Date(Date.UTC(y, m, 1)).toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    month: 'long',
+    year: 'numeric',
+  })
+const daysBetween = (fromYmd: string, toYmdVal: string) => {
+  const a = parseYmd(fromYmd)
+  const b = parseYmd(toYmdVal)
+  return Math.round((Date.UTC(b.y, b.m, b.d) - Date.UTC(a.y, a.m, a.d)) / 86_400_000) + 1
+}
+
+function presetRange(preset: string, todayYmd: string): [string, string] {
+  const { y, m } = parseYmd(todayYmd)
+  switch (preset) {
+    case 'Today':
+    case 'Custom':
+      return [todayYmd, todayYmd]
+    case 'Yesterday': {
+      const yest = addDaysToYmd(todayYmd, -1)
+      return [yest, yest]
+    }
+    case 'Last 7 Days':
+      return [addDaysToYmd(todayYmd, -6), todayYmd]
+    case 'Last 28 Days':
+      return [addDaysToYmd(todayYmd, -27), todayYmd]
+    case 'Last 30 Days':
+      return [addDaysToYmd(todayYmd, -29), todayYmd]
+    case 'Last Month': {
+      const prevY = m === 0 ? y - 1 : y
+      const prevM = m === 0 ? 11 : m - 1
+      const lastDay = new Date(Date.UTC(prevY, prevM + 1, 0)).getUTCDate()
+      return [toYmd(prevY, prevM, 1), toYmd(prevY, prevM, lastDay)]
+    }
+    case 'This Month':
+    default: {
+      const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+      return [toYmd(y, m, 1), toYmd(y, m, lastDay)]
+    }
+  }
+}
+
+export function defaultThisMonthRange(now = Date.now()): DashboardDateRange {
+  const todayYmd = toManilaYmd(now)
+  const [fromYmd, toYmdVal] = presetRange('This Month', todayYmd)
+  return { preset: 'This Month', fromYmd, toYmd: toYmdVal, label: 'This Month' }
+}
+
+const PRESET_NAMES = ['Custom', 'Today', 'Yesterday', 'Last 7 Days', 'Last 28 Days', 'Last 30 Days', 'This Month', 'Last Month'] as const
 
 function useOutside<T extends HTMLElement>(fn: () => void) {
   const ref = useRef<T>(null)
@@ -26,40 +94,31 @@ function useOutside<T extends HTMLElement>(fn: () => void) {
   return ref
 }
 
-const presets: Record<string, () => [Date, Date]> = {
-  Custom: () => [NOW, NOW],
-  Today: () => [NOW, NOW],
-  Yesterday: () => [new Date(2026, 9, 19), new Date(2026, 9, 19)],
-  'Last 7 Days': () => [new Date(2026, 9, 14), NOW],
-  'Last 28 Days': () => [new Date(2026, 8, 23), NOW],
-  'Last 30 Days': () => [new Date(2026, 8, 21), NOW],
-  'This Month': () => [new Date(2026, 9, 1), new Date(2026, 9, 31)],
-  'Last Month': () => [new Date(2026, 8, 1), new Date(2026, 8, 30)],
-}
-
-function Month({ y, m, from, to, pick }: { y: number; m: number; from: Date; to: Date; pick: (d: Date) => void }) {
-  const first = new Date(y, m, 1).getDay()
-  const n = new Date(y, m + 1, 0).getDate()
-  const cells = [...Array(first).fill(null), ...Array.from({ length: n }, (_, i) => new Date(y, m, i + 1))]
+function Month({ y, m, fromYmd, toYmdVal, todayYmd, pick }: { y: number; m: number; fromYmd: string; toYmdVal: string; todayYmd: string; pick: (ymd: string) => void }) {
+  const first = new Date(Date.UTC(y, m, 1)).getUTCDay()
+  const n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+  const cells = [...Array(first).fill(null), ...Array.from({ length: n }, (_, i) => toYmd(y, m, i + 1))]
   return (
     <div className="grid grid-cols-7 gap-y-1.5 text-center text-[13px]">
       {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
         <span key={d} className="pb-1 text-muted-foreground">{d}</span>
       ))}
-      {cells.map((d, i) => {
-        if (!d) return <span key={i} />
-        const edge = same(d, from) || same(d, to)
-        const inR = d > from && d < to
+      {cells.map((ymd, i) => {
+        if (!ymd) return <span key={i} />
+        const edge = ymd === fromYmd || ymd === toYmdVal
+        const inR = ymd > fromYmd && ymd < toYmdVal
+        const dayNum = Number(ymd.slice(8))
         return (
           <button
-            key={i}
-            onClick={() => pick(d)}
+            key={ymd}
+            type="button"
+            onClick={() => pick(ymd)}
             className={cx(
               'h-8 font-medium transition-colors',
-              edge ? 'rounded-md bg-invert text-invert-fg' : inR ? (same(d, NOW) ? 'bg-fg/20 text-foreground' : 'bg-fg/10 text-foreground') : 'rounded-md text-foreground hover:bg-elev',
+              edge ? 'rounded-md bg-invert text-invert-fg' : inR ? (ymd === todayYmd ? 'bg-fg/20 text-foreground' : 'bg-fg/10 text-foreground') : 'rounded-md text-foreground hover:bg-elev',
             )}
           >
-            {d.getDate()}
+            {dayNum}
           </button>
         )
       })}
@@ -67,71 +126,133 @@ function Month({ y, m, from, to, pick }: { y: number; m: number; from: Date; to:
   )
 }
 
-export function DateRangePicker() {
+export function DateRangePicker({
+  value,
+  onApply,
+}: {
+  value: DashboardDateRange
+  onApply: (next: DashboardDateRange) => void
+}) {
   const [open, setOpen] = useState(false)
-  const [label, setLabel] = useState('This Month')
-  const [sel, setSel] = useState('This Month')
-  const [[from, to], setRange] = useState(presets['This Month']())
-  const [view, setView] = useState(new Date(2026, 9, 1))
-  const ref = useOutside<HTMLDivElement>(() => setOpen(false))
-  const pick = (d: Date) => {
-    setSel('Custom')
-    if (!same(from, to) || d < from) setRange([d, d])
-    else setRange([from, d])
+  const [draftSel, setDraftSel] = useState(value.preset)
+  const [draftFrom, setDraftFrom] = useState(value.fromYmd)
+  const [draftTo, setDraftTo] = useState(value.toYmd)
+  const [view, setView] = useState(() => {
+    const p = parseYmd(value.fromYmd)
+    return { y: p.y, m: p.m }
+  })
+
+  const syncDraftFromCommitted = () => {
+    setDraftSel(value.preset)
+    setDraftFrom(value.fromYmd)
+    setDraftTo(value.toYmd)
+    const p = parseYmd(value.fromYmd)
+    setView({ y: p.y, m: p.m })
   }
-  const next = new Date(view.getFullYear(), view.getMonth() + 1, 1)
-  const days = Math.round((day(to).getTime() - day(from).getTime()) / 864e5) + 1
+
+  const discardAndClose = () => {
+    syncDraftFromCommitted()
+    setOpen(false)
+  }
+
+  const ref = useOutside<HTMLDivElement>(discardAndClose)
+  const todayYmd = toManilaYmd(Date.now())
+
+  const pick = (ymd: string) => {
+    setDraftSel('Custom')
+    if (draftFrom !== draftTo || ymd < draftFrom) {
+      setDraftFrom(ymd)
+      setDraftTo(ymd)
+    } else {
+      setDraftTo(ymd)
+    }
+  }
+
+  const nextView = view.m === 11 ? { y: view.y + 1, m: 0 } : { y: view.y, m: view.m + 1 }
+  const prevView = view.m === 0 ? { y: view.y - 1, m: 11 } : { y: view.y, m: view.m - 1 }
+  const days = Math.max(1, daysBetween(draftFrom, draftTo))
+
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="flex h-10 items-center gap-2 rounded-full border border-border px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-elev">
-        <CalIcon size={16} className="text-muted-foreground" /> {label} {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      <button
+        type="button"
+        onClick={() => {
+          if (open) discardAndClose()
+          else {
+            syncDraftFromCommitted()
+            setOpen(true)
+          }
+        }}
+        className="flex h-10 items-center gap-2 rounded-full border border-border px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-elev"
+      >
+        <CalIcon size={16} className="text-muted-foreground" /> {value.label} {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
       {open && (
-        <div className="absolute right-0 top-12 z-50 w-[718px] overflow-hidden rounded-2xl border border-line bg-card text-foreground shadow-2xl animate-pop">
+        <div className="absolute right-0 top-12 z-50 w-[min(718px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-card text-foreground shadow-2xl animate-pop">
           <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
             <span className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">Select Date</span>
-            <button onClick={() => setOpen(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
+            <button type="button" onClick={discardAndClose} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
           </div>
-          <div className="flex">
-            <div className="w-[208px] border-r border-line p-4">
+          <div className="flex flex-col sm:flex-row">
+            <div className="border-b border-line p-3 sm:w-[208px] sm:border-b-0 sm:border-r sm:p-4">
               <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Quick Select</p>
-              {Object.keys(presets).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => { setSel(p); const r = presets[p](); setRange(r); setView(new Date(r[0].getFullYear(), r[0].getMonth(), 1)) }}
-                  className={cx('mb-1.5 flex h-[38px] w-full items-center rounded-md px-3 text-[14px]', sel === p ? 'bg-invert text-invert-fg' : 'text-foreground hover:bg-elev')}
-                >
-                  {p}
-                </button>
-              ))}
+              <div className="grid grid-cols-2 gap-1 sm:block">
+                {PRESET_NAMES.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setDraftSel(p)
+                      const [f, t] = presetRange(p, todayYmd)
+                      setDraftFrom(f)
+                      setDraftTo(t)
+                      const parsed = parseYmd(f)
+                      setView({ y: parsed.y, m: parsed.m })
+                    }}
+                    className={cx('flex h-[36px] w-full items-center rounded-md px-3 text-[13px] sm:mb-1.5 sm:h-[38px] sm:text-[14px]', draftSel === p ? 'bg-invert text-invert-fg' : 'text-foreground hover:bg-elev')}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex-1 bg-bg">
               <div className="flex items-end gap-3 border-b border-line bg-card p-4">
-                {[['From', from], ['To', to]].map(([l, d], i) => (
-                  <div key={l as string} className={cx('flex-1', i === 1 && 'order-3')}>
-                    <p className="mb-1.5 text-[12px] font-semibold uppercase text-muted-foreground">{l as string}</p>
-                    <div className="flex h-9 items-center rounded-md bg-field px-3 text-[14px] font-semibold text-foreground">{fmt(d as Date)}</div>
+                {[['From', draftFrom], ['To', draftTo]].map(([l, d], i) => (
+                  <div key={l} className={cx('flex-1', i === 1 && 'order-3')}>
+                    <p className="mb-1.5 text-[12px] font-semibold uppercase text-muted-foreground">{l}</p>
+                    <div className="flex h-9 items-center rounded-md bg-field px-3 text-[13px] font-semibold text-foreground sm:text-[14px]">{fmtYmd(d)}</div>
                   </div>
                 ))}
-                <div className="order-2 flex h-9 items-center gap-1 text-muted-foreground"><span className="h-px w-5 bg-line" /><ArrowRight size={14} /><span className="h-px w-5 bg-line" /></div>
+                <div className="order-2 flex h-9 items-center gap-1 text-muted-foreground"><span className="h-px w-3 bg-line sm:w-5" /><ArrowRight size={14} /><span className="h-px w-3 bg-line sm:w-5" /></div>
               </div>
-              <div className="grid grid-cols-2 gap-8 p-4">
-                {[view, next].map((v, i) => (
-                  <div key={i}>
+              <div className="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 sm:gap-8">
+                {[view, nextView].map((v, i) => (
+                  <div key={`${v.y}-${v.m}`}>
                     <div className="mb-3 flex items-center justify-between">
-                      {i === 0 ? <button aria-label="Previous month" onClick={() => setView(new Date(v.getFullYear(), v.getMonth() - 1, 1))} className="text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /></button> : <span />}
-                      <span className="text-[14px] font-semibold">{v.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                      {i === 1 ? <button aria-label="Next month" onClick={() => setView(next)} className="text-muted-foreground hover:text-foreground"><ChevronRight size={16} /></button> : <span />}
+                      {i === 0 ? <button type="button" aria-label="Previous month" onClick={() => setView(prevView)} className="text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /></button> : <span />}
+                      <span className="text-[14px] font-semibold">{monthLabel(v.y, v.m)}</span>
+                      {i === 1 ? <button type="button" aria-label="Next month" onClick={() => setView(nextView)} className="text-muted-foreground hover:text-foreground"><ChevronRight size={16} /></button> : <span />}
                     </div>
-                    <Month y={v.getFullYear()} m={v.getMonth()} from={from} to={to} pick={pick} />
+                    <Month y={v.y} m={v.m} fromYmd={draftFrom} toYmdVal={draftTo} todayYmd={todayYmd} pick={pick} />
                   </div>
                 ))}
               </div>
               <div className="flex items-center justify-between border-t border-line px-4 py-3">
-                <span className="text-[12px] text-muted-foreground">{days} days selected</span>
+                <span className="text-[12px] text-muted-foreground">{days} {days === 1 ? 'day' : 'days'} selected</span>
                 <div className="flex gap-2">
-                  <button onClick={() => setOpen(false)} className="h-8 rounded-full border border-line px-4 text-[13px] text-foreground hover:bg-elev">Cancel</button>
-                  <button onClick={() => { setLabel(sel === 'Custom' ? `${fmt(from)} – ${fmt(to)}` : sel); setOpen(false) }} className="h-8 rounded-full bg-invert px-4 text-[13px] font-semibold text-invert-fg hover:opacity-90">Apply</button>
+                  <button type="button" onClick={discardAndClose} className="h-8 rounded-full border border-line px-4 text-[13px] text-foreground hover:bg-elev">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextLabel = draftSel === 'Custom' ? `${fmtYmd(draftFrom)} – ${fmtYmd(draftTo)}` : draftSel
+                      onApply({ preset: draftSel, fromYmd: draftFrom, toYmd: draftTo, label: nextLabel })
+                      setOpen(false)
+                    }}
+                    className="h-8 rounded-full bg-invert px-4 text-[13px] font-semibold text-invert-fg hover:opacity-90"
+                  >
+                    Apply
+                  </button>
                 </div>
               </div>
             </div>

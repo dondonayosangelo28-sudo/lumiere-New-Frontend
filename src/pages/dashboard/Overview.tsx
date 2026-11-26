@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { currentAccount } from '../../auth/session'
-import { subscribe as subscribeAuth } from '../../auth/store'
+import { getState, subscribe as subscribeAuth } from '../../auth/store'
+import { accountsVersion, subscribeAccounts } from '../../auth/mockAuthService'
+import { useNow } from '../../components/admin/AdminKit'
+import { insightsMetrics } from '../../dashboard/dashboardMetrics'
 import { useNotify } from '../../components/ui/Notifications'
 import {
   ChevronLeft,
@@ -22,14 +25,17 @@ import {
 } from 'lucide-react'
 import { Card, PageHeader, Segmented, cx } from '../../components/ui/ui'
 import { initialTasks } from '../../data'
-import { DateRangePicker, ExportMenu } from './OverviewExtras'
+import { DateRangePicker, ExportMenu, defaultThisMonthRange, type DashboardDateRange } from './OverviewExtras'
 import { AdminSummaryCards, AuditActivity, SignInActivity, UsersByRole } from './AdminDashboardCards'
 import type { AdminNavigation } from '../../components/admin/adminNavigation'
 
 
 const greeting = (h: number) => (h < 5 ? 'Time to reflect' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Nice to see you')
 
-export function Hero({ name }: { name?: string }) {
+export const adminGreeting = (h: number) =>
+  h < 5 ? 'Time to reflect' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : h < 22 ? 'Nice to see you' : 'Wrapping up the day'
+
+export function Hero({ name, getGreeting = greeting }: { name?: string; getGreeting?: (hour: number) => string }) {
   const [t, setT] = useState(new Date())
   const [authFirstName, setAuthFirstName] = useState(() => currentAccount()?.firstName?.trim() || '')
   useEffect(() => {
@@ -51,7 +57,7 @@ export function Hero({ name }: { name?: string }) {
     <Card className="dashboard-welcome relative flex min-h-[210px] items-center overflow-hidden px-8 py-7">
       <div className="relative flex w-full flex-wrap items-center justify-between gap-6">
         <div>
-          <h2 className="text-[28px] font-bold leading-9 text-foreground">{greeting(h)}, {resolvedName}</h2>
+          <h2 className="text-[28px] font-bold leading-9 text-foreground">{getGreeting(h)}, {resolvedName}</h2>
           <p className="text-[14px] text-muted-foreground">Ready to make today productive! 🚀</p>
           <p className="mt-5 flex items-baseline gap-2 text-[48px] font-bold leading-none tabular-nums text-foreground">
             {time} <span className="text-[20px] font-medium text-muted-foreground">{h < 12 ? 'AM' : 'PM'}</span>
@@ -84,118 +90,89 @@ type InsightMetric = {
   value: number | null
   color: string
   icon: typeof Target
-  unit?: string
-  tooltip?: string
-  scale?: (value: number) => number
-  healthy?: (value: number) => boolean
-  healthyDefinition?: string
 }
 
-const LATENCY_SCALE_MS = 2000
-const ERROR_SCALE_PERCENT = 10
-const HEALTH_LIMITS = { availability: 99.9, latencyMs: 500, errorPercent: 1 }
 const clampScore = (value: number) => Math.max(0, Math.min(100, value))
-const metricScore = (metric: InsightMetric) => metric.value === null || !Number.isFinite(metric.value)
-  ? 0 : clampScore(metric.scale ? metric.scale(metric.value) : metric.value)
-
-// Explicit demo fixture, not live monitoring. Scores fill full-circle tracks.
-const healthMetrics: InsightMetric[] = [
-  { label: 'Service Availability', sub: 'Connected service uptime', value: 99.95, color: BLUE, icon: Target, unit: '%',
-    scale: clampScore,
-    healthy: value => value >= HEALTH_LIMITS.availability,
-    healthyDefinition: `availability ≥${HEALTH_LIMITS.availability}%`,
-    tooltip: 'Demo data, not live monitoring. Connected service uptime over a sample 24-hour period. Progress: availability ÷ 100, clamped to 0–1, against a full circle.' },
-  { label: 'Response Time', sub: 'Average request latency', value: 240, color: GREEN, icon: Clock, unit: ' ms',
-    scale: value => clampScore(100 * (1 - value / LATENCY_SCALE_MS)),
-    healthy: value => value <= HEALTH_LIMITS.latencyMs,
-    healthyDefinition: `latency ≤${HEALTH_LIMITS.latencyMs} ms`,
-    tooltip: 'Demo data, not live monitoring. Mean request latency over a sample 24-hour period. Score: 100 − latency ÷ 20, clamped to 0–100. Lower is better: 0 ms fills the circle; 2,000 ms or more is empty.' },
-  { label: 'Error Rate', sub: 'Failed requests', value: 0.2, color: GRAY, icon: Activity, unit: '%',
-    scale: value => clampScore(100 * (1 - value / ERROR_SCALE_PERCENT)),
-    healthy: value => value < HEALTH_LIMITS.errorPercent,
-    healthyDefinition: `errors <${HEALTH_LIMITS.errorPercent}%`,
-    tooltip: 'Demo data, not live monitoring. Failed requests ÷ total requests × 100 over a sample 24-hour period. Score: 100 − error percentage × 10, clamped to 0–100. Lower is better: 0% fills the circle; 10% or more is empty.' },
-]
-
-const ringSets: { trends: InsightMetric[] } = {
-  trends: [
-    { label: 'User Growth', sub: 'Month-over-month increase', value: 92, color: GREEN, icon: TrendingUp },
-    { label: 'Engagement Rate', sub: 'Daily active users', value: 88, color: BLUE, icon: Users },
-    { label: 'Retention', sub: 'User retention rate', value: 75, color: GRAY, icon: Target },
-  ],
-}
+const metricScore = (metric: InsightMetric) =>
+  metric.value === null || !Number.isFinite(metric.value) ? 0 : clampScore(metric.value)
 
 function Insights() {
-  const [tab, setTab] = useState<'health' | 'trends'>('trends')
-  const set = tab === 'health' ? healthMetrics : ringSets.trends
-  const missing = healthMetrics.some(metric => metric.value === null || !Number.isFinite(metric.value))
-  const healthStatus = missing ? 'No Data'
-    : healthMetrics[0].value === 0 ? 'Unavailable'
-    : healthMetrics.every(metric => metric.healthy!(metric.value!))
-      ? 'Healthy' : 'Degraded'
-  const statusDefinition = `Demo data, not live monitoring. Healthy: ${healthMetrics.map(metric => metric.healthyDefinition).join(', ')}. Unavailable: 0% availability. Otherwise Degraded. Missing measurements show No Data. Sample reporting period: 24 hours; no live update timestamp.`
+  useSyncExternalStore(subscribeAccounts, accountsVersion)
+  const now = useNow(30_000)
+  const [tab, setTab] = useState<'account' | 'trends'>('account')
+  const metrics = insightsMetrics(getState(), now)
+
+  const trendsSet: InsightMetric[] = [
+    { label: 'User Growth', sub: 'Month-over-month increase', value: metrics.trends.userGrowth, color: GREEN, icon: TrendingUp },
+    { label: 'Engagement Rate', sub: 'Daily active users', value: metrics.trends.engagementRate, color: BLUE, icon: Users },
+    { label: 'Retention', sub: 'Active or pending share', value: metrics.trends.retention, color: GRAY, icon: Target },
+  ]
+  const accountSet: InsightMetric[] = [
+    { label: 'Active Users', sub: 'Active accounts share', value: metrics.account.activeUsersPct, color: GREEN, icon: Users },
+    { label: 'Pending Users', sub: 'Pending activation share', value: metrics.account.pendingUsersPct, color: BLUE, icon: Clock },
+    { label: 'Inactive Users', sub: 'Inactive accounts share', value: metrics.account.inactiveUsersPct, color: GRAY, icon: Activity },
+  ]
+  const set = tab === 'account' ? accountSet : trendsSet
+  const centerValue = tab === 'account' ? metrics.account.activeUsersPct : metrics.trends.userGrowth
+  const centerText = centerValue === null ? 'N/A' : `${centerValue}%`
   return (
     <Card className="p-5">
       <h3 className="text-[16px] font-semibold text-foreground">Insights</h3>
-      <p className="mb-4 text-[14px] text-muted-foreground">Trends and system health</p>
+      <p className="mb-4 text-[14px] text-muted-foreground">Trends and account status</p>
       <Segmented
         keyboardNavigation
         value={tab}
         onChange={setTab}
         options={[
+          { value: 'account', label: 'Accounts', icon: Users },
           { value: 'trends', label: 'Trends', icon: TrendingUp },
-          { value: 'health', label: 'System Health', icon: Activity },
         ]}
       />
       <div className="dashboard-inset mt-4 rounded-2xl bg-fg/[0.03] p-5">
         <div className="flex flex-wrap items-center justify-center gap-6">
           <div className="relative size-40 shrink-0">
-            <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
-            {set.map((r, i) => {
-              const rad = 52 - i * 11
-              const c = 2 * Math.PI * rad
-              const fill = metricScore(r)
-              const length = c * (fill / 100)
-              const offset = c - length
-              return (
-                <g key={r.label}>
-                  {/* Track ring */}
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={rad}
-                    fill="none"
-                    stroke="currentColor"
-                    className="text-fg/[0.08]"
-                    strokeWidth="6.5"
-                  />
-                  {/* Value progress arc */}
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={rad}
-                    fill="none"
-                    stroke={r.color}
-                    strokeWidth="6.5"
-                    strokeLinecap="round"
-                    strokeDasharray={c}
-                    strokeDashoffset={offset}
-                    className="transition-all duration-500 ease-out"
-                  />
-                </g>
-              )
-            })}
+            <svg viewBox="0 0 120 120" className="size-full -rotate-90 scale-[1.13]" aria-hidden="true">
+              {set.map((r, i) => {
+                const rad = 52 - i * 11
+                const c = 2 * Math.PI * rad
+                const fill = metricScore(r)
+                const length = c * (fill / 100)
+                const offset = c - length
+                return (
+                  <g key={r.label}>
+                    {/* Track ring */}
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={rad}
+                      fill="none"
+                      stroke="currentColor"
+                      className="text-fg/[0.08]"
+                      strokeWidth="6.5"
+                    />
+                    {/* Value progress arc */}
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={rad}
+                      fill="none"
+                      stroke={r.color}
+                      strokeWidth="6.5"
+                      strokeLinecap="round"
+                      strokeDasharray={c}
+                      strokeDashoffset={offset}
+                      className="transition-all duration-500 ease-out"
+                    />
+                  </g>
+                )
+              })}
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
               <span
-                aria-describedby={tab === 'health' ? 'health-status-description' : undefined}
-                className={cx('whitespace-nowrap font-bold leading-none tracking-tight text-foreground', tab === 'health' ? 'text-base' : 'text-[26px]')}
+                className={cx('whitespace-nowrap font-bold leading-none tracking-tight text-foreground', centerText.length >= 5 ? 'text-[20px]' : 'text-[26px]')}
               >
-                {tab === 'health' ? healthStatus : `${set[0].value}%`}
+                {centerText}
               </span>
-              {tab === 'health' && (
-                <span id="health-status-description" className="sr-only">{statusDefinition}</span>
-              )}
             </div>
           </div>
           <ul key={tab} className="min-w-44 flex-1 space-y-4 animate-fade-up">
@@ -210,10 +187,7 @@ function Insights() {
                 >
                   <r.icon size={16} strokeWidth={2} />
                 </span>
-                <span
-                  className="min-w-0 flex-1"
-                  aria-describedby={r.tooltip ? `metric-description-${set.indexOf(r)}` : undefined}
-                >
+                <span className="min-w-0 flex-1">
                   <span className="block text-[14px] font-semibold leading-tight text-muted-foreground">
                     {r.label}
                   </span>
@@ -221,16 +195,11 @@ function Insights() {
                     {r.sub}
                   </span>
                 </span>
-                {r.tooltip && (
-                  <span id={`metric-description-${set.indexOf(r)}`} className="sr-only">
-                    {r.tooltip} Normalized score: {metricScore(r).toFixed(2)} / 100, filling {metricScore(r).toFixed(2)}% of the full 360° circle. Healthy threshold: {r.healthyDefinition}.
-                  </span>
-                )}
                 <span
                   className="w-16 shrink-0 self-center whitespace-nowrap text-right text-[14px] font-bold tabular-nums text-foreground"
                   style={{ color: r.color }}
                 >
-                  {r.value === null ? '—' : `${r.value}${r.unit ?? '%'}`}
+                  {r.value === null ? 'N/A' : `${r.value}%`}
                 </span>
               </li>
             ))}
@@ -307,8 +276,8 @@ function QuickTasks() {
                 aria-label={`${t.done ? 'Mark active' : 'Mark complete'}: ${t.title}`}
                 onChange={(event) => {
                   const checked = event.currentTarget.checked
-                  setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: checked } : x)))
-                  notify('Task status updated')
+                  setTasks((ts) => ts.map((x) => (x.id === t.id && x.done !== checked ? { ...x, done: checked } : x)))
+                  notify(checked ? 'Task completed' : 'Task moved to Active')
                 }}
                 className="size-4 shrink-0 cursor-pointer accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
               />
@@ -406,32 +375,40 @@ function Calendar() {
 }
 
 export default function Overview({ onOpen }: { onOpen: (nav: AdminNavigation) => void }) {
+  const [dateRange, setDateRange] = useState<DashboardDateRange>(() => defaultThisMonthRange())
+  const [calendarApplySeq, setCalendarApplySeq] = useState(0)
   return (
     <>
       <PageHeader
         crumbs={['Dashboard']}
-        title="Overview"
+        title="Dashboard"
         subtitle="Monitor key metrics and manage your platform"
         actions={
           <>
-            <DateRangePicker />
+            <DateRangePicker
+              value={dateRange}
+              onApply={(next) => {
+                setDateRange(next)
+                setCalendarApplySeq((n) => n + 1)
+              }}
+            />
             <ExportMenu />
           </>
         }
       />
       <div id="dashboard-image-export" className="dashboard-surfaces grid gap-4 xl:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-4 xl:col-span-2">
-          <Hero />
+          <Hero getGreeting={adminGreeting} />
           <AdminSummaryCards onOpen={onOpen} />
           <div className="grid gap-4 lg:grid-cols-2">
             <QuickTasks />
             <Calendar />
           </div>
-          <AuditActivity />
+          <AuditActivity dateRange={dateRange} calendarApplySeq={calendarApplySeq} />
         </div>
         <div className="min-w-0 space-y-4">
           <Insights />
-          <SignInActivity />
+          <SignInActivity dateRange={dateRange} calendarApplySeq={calendarApplySeq} />
           <UsersByRole />
         </div>
       </div>

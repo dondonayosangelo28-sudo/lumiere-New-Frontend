@@ -3,6 +3,7 @@ import {
   type RentalCatalogVendor,
 } from "../features/event-manager/rentals/rental-catalog"
 import { mutateOperationsStore, type OpsActor } from "./store-core"
+import { recordWorkflowAudit } from "../auth/crossRoleAudit"
 import type {
   OperationsStoreState,
   VendorRecord,
@@ -252,7 +253,7 @@ export function createVendor(
   }
   const { parsed } = validation
 
-  return mutateOperationsStore((draft) => {
+  const res = mutateOperationsStore((draft) => {
     const vendors = Array.isArray(draft.vendors) ? draft.vendors : []
     const duplicate = vendors.some(
       (v) => v.name.trim().toLowerCase() === parsed.name.toLowerCase(),
@@ -281,6 +282,17 @@ export function createVendor(
     draft.vendors = [vendor, ...vendors]
     return { ok: true as const, vendor }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Vendor created",
+      target: { type: "vendor", id: res.vendor.id, label: `${res.vendor.name} (${res.vendor.id})` },
+      description: `Created vendor "${res.vendor.name}" (${res.vendor.category}).`,
+      operationId: `vendor-create:${res.vendor.id}`,
+    })
+  }
+  return res
 }
 
 export function updateVendor(
@@ -305,7 +317,7 @@ export function updateVendor(
   }
   const { parsed } = validation
 
-  return mutateOperationsStore((draft) => {
+  const res = mutateOperationsStore((draft) => {
     const vendors = Array.isArray(draft.vendors) ? draft.vendors : []
     const existing = vendors.find((v) => v.id === vendorId)
     if (!existing) {
@@ -345,6 +357,16 @@ export function updateVendor(
     }
     return { ok: true as const, vendor: { ...existing } }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Vendor updated",
+      target: { type: "vendor", id: res.vendor.id, label: `${res.vendor.name} (${res.vendor.id})` },
+      description: `Updated vendor "${res.vendor.name}" (${res.vendor.status}).`,
+    })
+  }
+  return res
 }
 
 export function deleteOrArchiveVendor(
@@ -359,12 +381,14 @@ export function deleteOrArchiveVendor(
       error: "Only Warehouse Operations Managers can remove or archive vendors.",
     }
   }
-  return mutateOperationsStore((draft) => {
+  let vendorLabel = vendorId
+  const res = mutateOperationsStore((draft) => {
     const vendors = Array.isArray(draft.vendors) ? draft.vendors : []
     const existing = vendors.find((v) => v.id === vendorId)
     if (!existing) {
       return { ok: false as const, error: "Vendor not found." }
     }
+    vendorLabel = `${existing.name} (${existing.id})`
 
     if (isVendorReferenced(draft, vendorId)) {
       const now = new Date().toISOString()
@@ -379,6 +403,19 @@ export function deleteOrArchiveVendor(
     draft.vendors = vendors.filter((v) => v.id !== vendorId)
     return { ok: true as const, archived: false }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Vendor deleted",
+      target: { type: "vendor", id: vendorId, label: vendorLabel },
+      description: res.archived
+        ? `Archived referenced vendor ${vendorLabel}.`
+        : `Deleted vendor ${vendorLabel}.`,
+      operationId: `vendor-delete:${vendorId}`,
+    })
+  }
+  return res
 }
 
 export function getVendorSelectOptions(

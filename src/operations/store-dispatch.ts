@@ -1,4 +1,5 @@
 import { oldSystemApis, v51ContractApis } from "./apiClients"
+import { recordWorkflowAudit } from "../auth/crossRoleAudit"
 import { getEventManifestLines, getTripItemDamageSummary, mutateOperationsStore, type OpsActor } from "./store-core"
 import type {
   DispatchBatchDirection,
@@ -34,9 +35,11 @@ export function updateManifestLoadedQuantity(
   loadedQty: number,
   notes?: string,
 ): { ok: true; hasShortfall: boolean } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore<{ ok: true; hasShortfall: boolean } | { ok: false; error: string }>((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
     if (!order) return { ok: false, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
       return {
         ok: false,
@@ -96,8 +99,10 @@ export function updateManifestLoadedQuantity(
       order.loadingChecklist = undefined
     }
 
-    return { ok: true, hasShortfall: clamped < planned }
+    return { ok: true as const, hasShortfall: clamped < planned }
   })
+  void eventLabel
+  return res as { ok: true } | { ok: false; error: string } as { ok: true; hasShortfall: boolean } | { ok: false; error: string }
 }
 
 /**
@@ -110,9 +115,11 @@ export function submitFinalLoadingChecklist(
   eventId: string,
   notes: string,
 ): { ok: true } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
 
     if (!order.teamLeadEmail || order.teamLeadEmail.toLowerCase() !== actor.email.toLowerCase()) {
       return {
@@ -160,8 +167,19 @@ export function submitFinalLoadingChecklist(
     order.loadingChecklist = submission
 
     void v51ContractApis.submitLoadingChecklist(eventId, submission)
-    return { ok: true }
+    return { ok: true as const }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Ground Crew",
+      action: "Loading checklist submitted",
+      target: { type: "order", id: eventId, label: eventLabel },
+      description: `Submitted final dispatch loading checklist for ${eventLabel}.`,
+      operationId: `gc-load-check:${eventId}:${Date.now()}`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string }
 }
 
 /**
@@ -185,9 +203,11 @@ export function confirmOutboundDeparture(
     }
   }
 
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
 
     if (order.outboundDeparture) {
       return { ok: true, alreadyConfirmed: true }
@@ -285,8 +305,19 @@ export function confirmOutboundDeparture(
 
     void oldSystemApis.dispatch.dispatchAssets(eventId, departure.notes)
     void v51ContractApis.confirmOutboundDeparture(eventId, departure)
-    return { ok: true, alreadyConfirmed: false }
+    return { ok: true as const, alreadyConfirmed: false }
   })
+  if (res.ok && !res.alreadyConfirmed) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Dispatch batch stage updated",
+      target: { type: "order", id: eventId, label: eventLabel },
+      description: `Confirmed outbound departure for ${eventLabel}.`,
+      operationId: `outbound-departure:${eventId}`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string } as { ok: true; alreadyConfirmed?: boolean } | { ok: false; error: string }
 }
 
 /**
@@ -311,9 +342,11 @@ export function submitArrivalCheckpoint(
     }
   }
 
-  return mutateOperationsStore((draft) => {
+  let eventLabel = payload.eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === payload.eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
 
     if (!order.teamLeadEmail || order.teamLeadEmail.toLowerCase() !== actor.email.toLowerCase()) {
       return {
@@ -340,8 +373,18 @@ export function submitArrivalCheckpoint(
     }
 
     void v51ContractApis.submitArrivalConfirmation(payload.eventId, record)
-    return { ok: true }
+    return { ok: true as const }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Ground Crew",
+      action: payload.checkpoint === "Venue Arrival" ? "Venue arrival confirmed" : "Warehouse arrival confirmed",
+      target: { type: "order", id: payload.eventId, label: eventLabel },
+      description: `Confirmed ${payload.checkpoint} for ${eventLabel}.`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string }
 }
 
 export function isBatchReturnPhase(batch: Pick<DispatchBatchRecord, "direction" | "stage">): boolean {
@@ -503,7 +546,16 @@ export function createDispatchBatch(
   })
 
   if (!res.ok || !createdBatch) return res as { ok: false; error: string }
-  return { ok: true, batch: createdBatch }
+  const created = createdBatch as DispatchBatchRecord
+  recordWorkflowAudit({
+    actor,
+    fallbackRole: "Warehouse Operations Manager",
+    action: "Dispatch batch created",
+    target: { type: "dispatch", id: created.id, label: `${created.id} · ${created.vehicleType} (${payload.eventId})` },
+    description: `Created ${created.direction} dispatch batch ${created.id} (${created.vehicleType}, ${created.plateNumber}).`,
+    operationId: `dispatch-create:${created.id}`,
+  })
+  return { ok: true, batch: created }
 }
 
 export function updateDispatchBatchDetails(
@@ -518,14 +570,21 @@ export function updateDispatchBatchDetails(
     assignedCrewEmails?: string[]
   },
 ): { ok: true } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = payload.eventId
+  let batchLabel = payload.batchId
+  let prevStage = ""
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === payload.eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
-      return { ok: false, error: "Event accountability is closed." }
+      return { ok: false as const, error: "Event accountability is closed." }
     }
     const batch = (order.dispatchBatches ?? []).find((b) => b.id === payload.batchId)
-    if (!batch) return { ok: false, error: "Dispatch batch not found." }
+    if (!batch) return { ok: false as const, error: "Dispatch batch not found." }
+    prevStage = batch.stage
+    batchLabel = `${batch.id} · ${batch.vehicleType} (${order.eventTitle})`
+    void eventLabel
     if (batch.stage === "Cancelled") {
       return { ok: false, error: "Cancelled batches are preserved read-only for audit history." }
     }
@@ -558,8 +617,18 @@ export function updateDispatchBatchDetails(
     }
     batch.updatedAt = new Date().toISOString()
     void actor
-    return { ok: true }
+    return { ok: true as const }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Dispatch batch updated",
+      target: { type: "dispatch", id: payload.batchId, label: batchLabel },
+      description: `Updated dispatch batch details for ${batchLabel}.`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string }
 }
 
 export function updateTripItemReturnedQuantity(
@@ -571,9 +640,11 @@ export function updateTripItemReturnedQuantity(
   if (!Number.isFinite(returnedQty) || returnedQty < 0) {
     return { ok: false, error: "Returned quantity must be a finite number (0 or greater)." }
   }
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore<{ ok: true; discrepancy: number } | { ok: false; error: string }>((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
     if (!order) return { ok: false, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
       return {
         ok: false,
@@ -692,8 +763,18 @@ export function updateTripItemReturnedQuantity(
       }
     }
 
-    return { ok: true, discrepancy: Math.max(0, plannedRet - nextQty) }
+    return { ok: true as const, discrepancy: Math.max(0, plannedRet - nextQty) }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor: { role: "Ground Crew" },
+      fallbackRole: "Ground Crew",
+      action: "Return count submitted",
+      target: { type: "dispatch", id: batchId, label: `${batchId} (${eventLabel})` },
+      description: `Recorded return count (${returnedQty}) for item in ${batchId}.`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string } as { ok: true; discrepancy: number } | { ok: false; error: string }
 }
 
 export function reconcileLegacyReturnTotal(
@@ -701,9 +782,11 @@ export function reconcileLegacyReturnTotal(
   eventId: string,
   assetId: string,
 ): { ok: true } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
       return { ok: false, error: "Cannot reconcile return totals after Warehouse event accountability is closed." }
     }
@@ -772,8 +855,10 @@ export function reconcileLegacyReturnTotal(
     stockLine.returnCounted = true
     stockLine.legacyReturnUncertain = false
     stockLine.legacyEventReturnedQty = undefined
-    return { ok: true }
+    return { ok: true as const }
   })
+  void eventLabel
+  return res as { ok: true } | { ok: false; error: string } as { ok: true; hasShortfall: boolean } | { ok: false; error: string }
 }
 
 export function reconcileLegacyReturnManually(
@@ -794,9 +879,11 @@ export function reconcileLegacyReturnManually(
   if (!payload.reason.trim()) {
     return { ok: false, error: "Enter a documented reason for manual legacy return reconciliation." }
   }
-  return mutateOperationsStore((draft) => {
+  let eventLabel = eventId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
       return { ok: false, error: "Cannot reconcile return totals after Warehouse event accountability is closed." }
     }
@@ -845,8 +932,10 @@ export function reconcileLegacyReturnManually(
     stockLine.returnCounted = true
     stockLine.legacyReturnUncertain = false
     stockLine.legacyEventReturnedQty = undefined
-    return { ok: true }
+    return { ok: true as const }
   })
+  void eventLabel
+  return res as { ok: true } | { ok: false; error: string } as { ok: true; hasShortfall: boolean } | { ok: false; error: string }
 }
 
 export function advanceDispatchBatchStage(
@@ -857,14 +946,21 @@ export function advanceDispatchBatchStage(
     nextStage: Exclude<DispatchBatchStage, "Cancelled" | "Planned">
   },
 ): { ok: true } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let eventLabel = payload.eventId
+  let batchLabel = payload.batchId
+  let prevStage = ""
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === payload.eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
+    eventLabel = `${order.eventTitle} (${order.eventId})`
     if (order.warehouseClosed) {
-      return { ok: false, error: "Event accountability is closed." }
+      return { ok: false as const, error: "Event accountability is closed." }
     }
     const batch = (order.dispatchBatches ?? []).find((b) => b.id === payload.batchId)
-    if (!batch) return { ok: false, error: "Dispatch batch not found." }
+    if (!batch) return { ok: false as const, error: "Dispatch batch not found." }
+    prevStage = batch.stage
+    batchLabel = `${batch.id} · ${batch.vehicleType} (${order.eventTitle})`
+    void eventLabel
     if (batch.stage === "Cancelled") {
       return { ok: false, error: "Cancelled batches cannot advance." }
     }
@@ -1187,19 +1283,35 @@ export function advanceDispatchBatchStage(
     }
 
     void actor
-    return { ok: false, error: "Unsupported stage transition." }
+    return { ok: false as const, error: "Unsupported stage transition." }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: "Dispatch batch stage updated",
+      target: { type: "dispatch", id: payload.batchId, label: batchLabel },
+      description: `Moved dispatch batch ${batchLabel} from ${prevStage} to ${payload.nextStage}.`,
+      changes: [{ field: "stage", from: prevStage, to: payload.nextStage }],
+      operationId: `dispatch-stage:${payload.batchId}:${payload.nextStage}`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string }
 }
 
 export function cancelDispatchBatch(
   actor: OpsActor,
   payload: { eventId: string; batchId: string; reason?: string; deleteFromDispatch?: boolean },
 ): { ok: true } | { ok: false; error: string } {
-  return mutateOperationsStore((draft) => {
+  let prevStage = ""
+  let batchLabel = payload.batchId
+  const res = mutateOperationsStore((draft) => {
     const order = draft.orderRequests.find((o) => o.eventId === payload.eventId)
-    if (!order) return { ok: false, error: "Event Order Request not found." }
+    if (!order) return { ok: false as const, error: "Event Order Request not found." }
     const batch = (order.dispatchBatches ?? []).find((b) => b.id === payload.batchId)
-    if (!batch) return { ok: false, error: "Dispatch batch not found." }
+    if (!batch) return { ok: false as const, error: "Dispatch batch not found." }
+    prevStage = batch.stage
+    batchLabel = `${batch.id} · ${batch.vehicleType} (${order.eventTitle})`
 
     if (
       batch.departedAt ||
@@ -1259,6 +1371,20 @@ export function cancelDispatchBatch(
     batch.cancelReason = payload.reason?.trim() || `Cancelled by ${actor.name}`
     if (payload.deleteFromDispatch) batch.deletedAt = batch.cancelledAt
     batch.updatedAt = batch.cancelledAt
-    return { ok: true }
+    return { ok: true as const }
   })
+  if (res.ok) {
+    recordWorkflowAudit({
+      actor,
+      fallbackRole: "Warehouse Operations Manager",
+      action: payload.deleteFromDispatch ? "Dispatch batch deleted" : "Dispatch batch stage updated",
+      target: { type: "dispatch", id: payload.batchId, label: batchLabel },
+      description: payload.deleteFromDispatch
+        ? `Deleted dispatch batch ${batchLabel} (previous stage: ${prevStage}).`
+        : `Cancelled dispatch batch ${batchLabel} (previous stage: ${prevStage}).`,
+      changes: [{ field: "stage", from: prevStage, to: payload.deleteFromDispatch ? "Deleted" : "Cancelled" }],
+      operationId: `dispatch-${payload.deleteFromDispatch ? "delete" : "cancel"}:${payload.batchId}`,
+    })
+  }
+  return res as { ok: true } | { ok: false; error: string }
 }

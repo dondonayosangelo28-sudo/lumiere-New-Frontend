@@ -5,7 +5,7 @@ import { cx } from '../ui/ui'
 import { useShell } from '../layout/Shell'
 
 // Right-side sheet. Stays mounted through the exit transition, and collapses the sidebar while open.
-export default function Drawer({ open, onClose, title, subtitle, children, footer, compact = false }: { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; compact?: boolean }) {
+export default function Drawer({ open, onClose, title, subtitle, eyebrow, titleClassName, headerTextClassName, bodyClassName, children, footer, compact = false }: { open: boolean; onClose: () => void; title: string; subtitle?: string; eyebrow?: string; titleClassName?: string; headerTextClassName?: string; bodyClassName?: string; children: ReactNode; footer?: ReactNode; compact?: boolean }) {
   const { setCollapsed } = useShell()
   const [mounted, setMounted] = useState(open)
   const [shown, setShown] = useState(false)
@@ -39,16 +39,17 @@ export default function Drawer({ open, onClose, title, subtitle, children, foote
           shown ? 'translate-x-0' : 'translate-x-full',
         )}
       >
-        <header className={cx('flex items-center justify-between px-6 pb-2 pt-5', compact && 'shrink-0')}>
-          <div>
-            <h2 className="text-[18px] font-semibold leading-7 text-foreground">{title}</h2>
-            {subtitle && <p className="text-[13px] text-muted-foreground">{subtitle}</p>}
+        <header className={cx('flex justify-between gap-3 px-6 pb-2 pt-5', eyebrow ? 'items-start' : 'items-center', compact && 'shrink-0')}>
+          <div className={cx('min-w-0 flex-1', headerTextClassName)}>
+            {eyebrow && <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{eyebrow}</p>}
+            <h2 className={cx('break-words text-[18px] font-semibold leading-7 text-foreground', titleClassName)}>{title}</h2>
+            {subtitle && <p className="break-all text-[13px] text-muted-foreground">{subtitle}</p>}
           </div>
-          <button onClick={onClose} aria-label="Close" className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:text-foreground">
             <X size={18} />
           </button>
         </header>
-        <div className={cx('overflow-y-auto px-6', compact ? 'min-h-0 pt-5 pb-3' : 'flex-1 py-5')}>{children}</div>
+        <div className={cx('overflow-y-auto px-6', compact ? 'min-h-0 pt-5 pb-3' : 'flex-1 py-5', bodyClassName)}>{children}</div>
         {footer && <footer className={cx('flex gap-2 px-6 pb-5 pt-3', compact ? 'shrink-0 flex-col items-stretch sm:flex-row sm:items-center sm:justify-end [&>button]:justify-center' : 'items-center justify-end')}>{footer}</footer>}
       </aside>
     </OverlayLayer>
