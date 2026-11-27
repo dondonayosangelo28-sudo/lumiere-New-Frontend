@@ -217,7 +217,7 @@ export function ConceptsView({
           <button
             type="button"
             onClick={closeConfirm}
-            className="h-10 rounded-full px-4 text-[14px] font-semibold transition-colors hover:bg-fg/[0.08]"
+            className="h-10 rounded-full px-4 text-[14px] font-semibold transition-colors hover:bg-fg/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
           >
             Cancel
           </button>

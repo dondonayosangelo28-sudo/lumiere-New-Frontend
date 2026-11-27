@@ -583,7 +583,7 @@ body {
   box-shadow: none;
 }
 
-.dark #dashboard-image-export .dashboard-card.dashboard-welcome {
+.dark :is(#dashboard-image-export, .warehouse-dashboard-surfaces) .dashboard-card.dashboard-welcome {
   isolation: isolate;
   background-color: #0e0e0e;
   background-image: radial-gradient(2100px 1200px at 0% 0%,
@@ -592,7 +592,7 @@ body {
       rgba(0, 0, 0, 0) 70%);
 }
 
-.dark #dashboard-image-export .dashboard-card.dashboard-welcome::before {
+.dark :is(#dashboard-image-export, .warehouse-dashboard-surfaces) .dashboard-card.dashboard-welcome::before {
   content: '';
   position: absolute;
   inset: -50% 0 auto auto;
@@ -3541,6 +3541,10 @@ html.dark .em-product {
   font-variant-numeric: tabular-nums;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.dark .tb-hex {
+  color: #ffffff;
 }
 
 .tb-colour .em-icon-btn:disabled {

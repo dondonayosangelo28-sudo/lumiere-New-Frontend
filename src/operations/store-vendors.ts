@@ -88,6 +88,15 @@ const SEED_VENDOR_DETAILS: Record<
   },
 }
 
+export const SEED_RENTAL_VENDOR_IDS = new Set([
+  "sample-audio",
+  "sample-av",
+  "sample-lighting",
+  "sample-equipment",
+  "sample-furniture",
+  "sample-production",
+])
+
 export function buildSeedVendors(): VendorRecord[] {
   const now = "2026-04-13T18:00:00.000Z"
   return rentalVendors.map((rv) => {
@@ -96,6 +105,9 @@ export function buildSeedVendors(): VendorRecord[] {
       id: rv.id,
       name: rv.company,
       contactPerson: details?.contactPerson ?? "Operations Desk",
+      ...(SEED_RENTAL_VENDOR_IDS.has(rv.id)
+        ? { vendorType: "Rental Asset" as const }
+        : {}),
       category: details?.category ?? rv.supplierType,
       specialty: details?.specialty ?? rv.supplierType,
       email: details?.email ?? "",
@@ -429,6 +441,7 @@ export function getVendorSelectOptions(
   const active = source.filter(
     (v) =>
       v.status === "Active" &&
+      !v.archivedAt &&
       (targetType === "Event Asset"
         ? v.vendorType !== "Rental Asset"
         : v.vendorType !== "Event Asset"),
@@ -458,7 +471,7 @@ export function getEventManagerVendorList(
   const source =
     vendors && vendors.length > 0 ? vendors : buildSeedVendors()
   return source
-    .filter((v) => v.status === "Active" && v.vendorType !== "Event Asset")
+    .filter((v) => v.status === "Active" && !v.archivedAt && v.vendorType !== "Event Asset")
     .map((v) => ({
       id: v.id,
       company: v.name,

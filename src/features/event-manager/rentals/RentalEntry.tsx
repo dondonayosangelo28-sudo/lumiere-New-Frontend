@@ -1,6 +1,6 @@
 import { useId, useState } from "react"
 import { FilePenLine, X } from "lucide-react"
-import { Badge, Button } from "../../../components/ui/ui"
+import { Badge, Button, cx } from "../../../components/ui/ui"
 import type { EventRentalRecord } from "../../../operations/types"
 import { rentalDisplay } from "./event-rentals"
 import type { Rental } from "../model"
@@ -10,12 +10,14 @@ export default function RentalEntry({
   entry,
   readOnly,
   warehouseRental,
+  isPendingRemoval = false,
   onChange,
   onRemove,
 }: {
   entry: Rental
   readOnly: boolean
   warehouseRental?: EventRentalRecord
+  isPendingRemoval?: boolean
   onChange: (patch: Partial<Rental>) => void
   onRemove: () => void
 }) {
@@ -29,7 +31,7 @@ export default function RentalEntry({
   const contact = entry.contact?.trim()
 
   return (
-    <li className="border-b border-line py-4">
+    <li className="border-b border-line py-4 last:border-b-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -68,6 +70,10 @@ export default function RentalEntry({
               type="button"
               variant="ghost"
               icon={X}
+              className={cx(
+                "active:text-destructive!",
+                isPendingRemoval && "text-destructive!",
+              )}
               aria-label={`Remove ${company}`}
               onClick={onRemove}
             >

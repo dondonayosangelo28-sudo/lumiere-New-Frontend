@@ -964,8 +964,8 @@ export default function ReplenishmentDeficitsModule({
   return (
     <div className="space-y-5">
       <PageHeader
-        crumbs={["Dashboard", "Replenishment & Deficits"]}
-        title="Replenishment / Deficits"
+        crumbs={["Dashboard", "Replenishment"]}
+        title="Replenishment"
         subtitle="Automated deficit detection, inventory replenishment alerts, and order preparation."
       />
 

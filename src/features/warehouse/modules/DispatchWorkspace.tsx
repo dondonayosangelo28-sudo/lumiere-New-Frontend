@@ -8,17 +8,20 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Clock,
   MapPin,
   Pencil,
   Search,
   Trash2,
   Truck,
+  UserRound,
 } from "lucide-react"
 import Modal from "../../../components/overlay/Modal"
 import Dropdown from "../../../components/ui/Dropdown"
 import RowMenu from "../../../components/ui/RowMenu"
 import { Badge, Button, Field, Input } from "../../../components/ui/ui"
 import { fmtStamp, textareaCls } from "../../event-manager/shared"
+import { MANILA_TIME_ZONE } from "../../../auth/manilaTime"
 import { findSavedProjectVenueLocation } from "../../event-manager/preview-data"
 import type {
   DispatchBatchDirection,
@@ -519,26 +522,99 @@ function CargoManifest({ rows, actualLabel, eventManifest, onExport }: {
   )
 }
 
+function parseManilaDateTime(value?: string): Date | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const normalized = /(?:Z|[+-]\d{2}:\d{2})$/i.test(trimmed)
+    ? trimmed
+    : /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+      ? `${trimmed}T00:00:00+08:00`
+      : `${trimmed}+08:00`
+  const parsed = new Date(normalized)
+  const target = Number.isNaN(parsed.getTime()) ? new Date(trimmed) : parsed
+  return Number.isNaN(target.getTime()) ? null : target
+}
+
+function formatEventStartDate(value?: string): string {
+  const trimmed = value?.trim()
+  if (!trimmed) return "Date pending"
+  const target = parseManilaDateTime(trimmed)
+  if (!target) return trimmed
+  return target.toLocaleDateString("en-US", {
+    timeZone: MANILA_TIME_ZONE,
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+function formatEventHours(start?: string, end?: string): string {
+  const startDate = parseManilaDateTime(start)
+  const endDate = parseManilaDateTime(end)
+  if (!startDate || !endDate) return "Not scheduled"
+  const fmt = (date: Date) =>
+    date.toLocaleTimeString("en-US", {
+      timeZone: MANILA_TIME_ZONE,
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  return `${fmt(startDate)}–${fmt(endDate)}`
+}
+
 function EventSummaryCard({ entry, onClick }: { entry: DispatchSelection; onClick: () => void }) {
   const { order, needsAttention, loadingPercent = 0 } = entry
   const batches = (order.dispatchBatches ?? []).filter((batch) => batch.stage !== "Cancelled")
   const outbound = batches.filter((batch) => batch.direction === "outbound").length
+  const dateLabel = formatEventStartDate(order.startDateTime)
+  const hoursLabel = formatEventHours(order.startDateTime, order.endDateTime)
+  const teamLeadLabel =
+    order.teamLeadName?.trim() || order.teamLeadEmail?.trim() || "Team lead pending"
   return (
     <button type="button" className="dispatch-panel dispatch-summary" onClick={onClick}>
-      <span className="dispatch-summary-header">
-        <span>
-          <strong>{order.eventTitle}</strong>
-          <small>{order.venue || "Venue pending"} · {order.id}</small>
-        </span>
+      <span className="dispatch-summary-top">
+        <span className="dispatch-id">{order.id}</span>
         <span className="dispatch-summary-badges">
-          {needsAttention && <Badge tone="danger"><AlertTriangle size={13} aria-hidden="true" /> Attention</Badge>}
+          {needsAttention && (
+            <Badge tone="danger">
+              <span className="inline-flex items-center gap-1">
+                <AlertTriangle size={13.39} aria-hidden="true" />
+                <span>Attention</span>
+              </span>
+            </Badge>
+          )}
           <Badge tone={order.warehouseClosed ? "success" : "neutral"}>{order.warehouseClosed ? "Completed" : "Active"}</Badge>
-          <ChevronRight size={16} aria-hidden="true" />
+        </span>
+      </span>
+      <span className="dispatch-summary-body">
+        <strong className="dispatch-summary-title">{order.eventTitle}</strong>
+        <span className="dispatch-summary-venue">
+          <MapPin size={13.39} aria-hidden="true" />
+          <span>{order.venue || "Venue pending"}</span>
+        </span>
+      </span>
+      <span className="dispatch-summary-meta">
+        <span className="dispatch-summary-meta-row">
+          <CalendarDays size={13.39} aria-hidden="true" />
+          <span>
+            Date: <strong>{dateLabel}</strong>
+          </span>
+        </span>
+        <span className="dispatch-summary-meta-row">
+          <Clock size={13.39} aria-hidden="true" />
+          <span>
+            Event Hours: <strong>{hoursLabel}</strong>
+          </span>
+        </span>
+        <span className="dispatch-summary-meta-row">
+          <UserRound size={13.39} aria-hidden="true" />
+          <span>
+            Assigned Team Lead: <strong>{teamLeadLabel}</strong>
+          </span>
         </span>
       </span>
       <span className="dispatch-summary-footer">
         <span className="dispatch-summary-counts">
-          <strong><Truck size={14} aria-hidden="true" /> {batches.length} {batches.length === 1 ? "batch" : "batches"}</strong>
+          <strong><Truck size={14.42} aria-hidden="true" /> {batches.length} {batches.length === 1 ? "batch" : "batches"}</strong>
           <span>{outbound} outbound</span>
           <span>{batches.length - outbound} return</span>
         </span>

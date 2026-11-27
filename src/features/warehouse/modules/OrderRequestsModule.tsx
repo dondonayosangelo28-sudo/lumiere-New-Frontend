@@ -1,19 +1,27 @@
 import { useEffect, useMemo, useState } from "react"
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Box,
   Calendar,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
   FileCheck2,
   FileText,
   Hammer,
+  Layers,
   MapPin,
   PackageCheck,
+  Palette,
   Search,
+  ShieldCheck,
   ShoppingCart,
   Truck,
+  UserRound,
   Users,
+  type LucideIcon,
 } from "lucide-react"
 import { Badge, Button, Card, Field, Input, PageHeader, cx } from "../../../components/ui/ui"
 import {
@@ -536,23 +544,45 @@ export default function OrderRequestsModule({
     (i) => i.resolutionStatus !== "Resolved",
   )
 
-  const workspaceTabs: { key: EventWorkspaceTab; label: string; count?: number }[] = [
-    { key: "overview", label: "Overview" },
-    { key: "mood-board", label: "Mood Board", count: order.moodBoardPins?.length ?? 0 },
+  const workspaceTabs: {
+    key: EventWorkspaceTab
+    label: string
+    icon: LucideIcon
+    count?: number
+  }[] = [
+    { key: "overview", label: "Overview", icon: Layers },
+    {
+      key: "mood-board",
+      label: "Mood Board",
+      icon: Palette,
+      count: order.moodBoardPins?.length ?? 0,
+    },
     {
       key: "assets",
       label: "Assets",
+      icon: Box,
       count: order.stockLines.length + order.customSpecs.length + order.rentals.length,
     },
-    { key: "crew", label: "Crew & Scheduling", count: activeRoster.length },
-    { key: "production", label: "Production", count: eventFabJobs.length },
+    { key: "crew", label: "Crew & Scheduling", icon: Users, count: activeRoster.length },
+    { key: "production", label: "Production", icon: Hammer, count: eventFabJobs.length },
     {
       key: "verification",
       label: "Verification",
+      icon: ShieldCheck,
       count: eventFabJobs.filter((j) => j.status === "Awaiting Verification").length,
     },
-    { key: "dispatch", label: "Dispatch & Returns", count: manifestLines.length },
-    { key: "damage", label: "Damage & Missing", count: openEventIncidents.length },
+    {
+      key: "dispatch",
+      label: "Dispatch & Returns",
+      icon: Truck,
+      count: manifestLines.length,
+    },
+    {
+      key: "damage",
+      label: "Damage & Missing",
+      icon: AlertTriangle,
+      count: openEventIncidents.length,
+    },
   ]
 
   const handleEmbeddedNavigate = (
@@ -600,8 +630,6 @@ export default function OrderRequestsModule({
       {/* ── VIEW B: EVENT WORKSPACE HEADER ── */}
       <div className="dashboard-surfaces">
         <Card className="relative overflow-hidden p-4 sm:p-5 space-y-4">
-          <div className="dashboard-surfaces">
-            <Card className="relative overflow-hidden p-4 sm:p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
@@ -618,11 +646,15 @@ export default function OrderRequestsModule({
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs text-muted-foreground">{order.id}</span>
-                <Badge tone={eventSummary?.readiness.tone ?? "warning"}>
-                  {eventSummary?.readiness.statusLabel ?? "Configuration pending"}
-                </Badge>
-                <Badge tone="info">Theme: {order.theme}</Badge>
+                <span className="font-mono text-[13.2px] text-muted-foreground">{order.id}</span>
+                <span className="inline-flex [&>span]:px-[11px]! [&>span]:py-[4.5px]! [&>span]:text-[13.2px]! [&>span]:leading-[17.6px]!">
+                  <Badge tone="info">Theme: {order.theme}</Badge>
+                </span>
+                <span className="inline-flex [&>span]:px-[11px]! [&>span]:py-[4.5px]! [&>span]:text-[13.2px]! [&>span]:leading-[17.6px]!">
+                  <Badge tone={eventSummary?.readiness.tone ?? "warning"}>
+                    {eventSummary?.readiness.statusLabel ?? "Configuration pending"}
+                  </Badge>
+                </span>
                 {openEventDeficits.length > 0 && (
                   <>
                     <Badge tone="danger">
@@ -645,61 +677,65 @@ export default function OrderRequestsModule({
               </div>
             </div>
 
-            <div className="min-w-0 space-y-1">
-              <h2 className="break-words text-2xl font-semibold tracking-tight text-foreground">
+            <div className="min-w-0 space-y-2">
+              <h2 className="break-words text-[26.4px] leading-tight font-semibold tracking-tight text-foreground">
                 {order.eventTitle}
               </h2>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 break-words text-xs text-muted-foreground">
-                <span>
-                  Client: <strong className="text-foreground">{order.clientName || "Not configured"}</strong>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 break-words text-[13.2px] text-muted-foreground">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <MapPin className="size-[15.4px] shrink-0 text-[#c99e67]" aria-hidden="true" />
+                  <span className="sr-only">Venue: </span>
+                  <span className="font-normal text-muted-foreground">{order.venue || "Not configured"}</span>
                 </span>
-                <span>
-                  Venue: <strong className="text-foreground">{order.venue || "Not configured"}</strong>
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <CalendarDays className="size-[15.4px] shrink-0 text-[#c99e67]" aria-hidden="true" />
+                  <span className="sr-only">Date: </span>
+                  <span className="font-normal text-muted-foreground">{fmtStamp(order.startDateTime)} – {fmtStamp(order.endDateTime)}</span>
                 </span>
-                <span>
-                  Date: <strong className="text-foreground">{fmtStamp(order.startDateTime)} – {fmtStamp(order.endDateTime)}</strong>
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <UserRound className="size-[15.4px] shrink-0 text-[#c99e67]" aria-hidden="true" />
+                  <span className="sr-only">Team Lead: </span>
+                  <span className="font-normal text-muted-foreground">{explicitLeadLabel}</span>
                 </span>
-                <span>
-                  Team Lead: <strong className="text-foreground">{explicitLeadLabel}</strong>
-                </span>
-                <span>
-                  Approved by <strong className="text-foreground">{order.approvedByName}</strong> (Rev {order.revisionAtApproval})
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <ShieldCheck className="size-[15.4px] shrink-0 text-[#c99e67]" aria-hidden="true" />
+                  <span className="sr-only">Approved by </span>
+                  <span className="font-normal text-muted-foreground">{order.approvedByName}</span>
                 </span>
               </div>
             </div>
 
             {/* Event-Specific Tabs */}
-            <div
-              className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-line pt-3"
-              role="tablist"
-              aria-label="Event workspace sections"
-            >
-              {workspaceTabs.map((t) => {
-                const active = workspaceTab === t.key
-                return (
-                  <button
-                    key={t.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setWorkspaceTab(t.key)}
-                    className={cx(
-                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                      active
-                        ? "border-accent bg-accent text-accent-foreground"
-                        : "border-line bg-card text-muted-foreground hover:bg-fg/[0.04] hover:text-foreground",
-                    )}
-                  >
-                    <span>{t.label}</span>
-                    {t.count !== undefined && (
-                      <span className="tabular-nums opacity-75">({t.count})</span>
-                    )}
-                  </button>
-                )
-              })}
+            <div className="border-t border-line pt-3">
+              <div
+                className="flex w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-xl bg-transparent"
+                role="tablist"
+                aria-label="Event workspace sections"
+              >
+                {workspaceTabs.map((t) => {
+                  const active = workspaceTab === t.key
+                  const Icon = t.icon
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setWorkspaceTab(t.key)}
+                      className={cx(
+                        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-[7px] text-[13.2px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#737373]",
+                        active
+                          ? "bg-[#f5f5f5] font-semibold text-foreground dark:bg-[#292929] dark:text-[#fafafa] dark:shadow-[inset_0_0_0_1px_#363636]"
+                          : "bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground dark:text-[#a3a3a3] dark:hover:bg-transparent dark:hover:text-[#fafafa]",
+                      )}
+                    >
+                      <Icon className="size-[15.4px] shrink-0" aria-hidden="true" />
+                      <span>{t.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            </Card>
-          </div>
         </Card>
       </div>
 

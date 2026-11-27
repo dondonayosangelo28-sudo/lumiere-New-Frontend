@@ -122,18 +122,40 @@
 
 .dispatch-directory-list {
   display: grid;
-  gap: .625rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 42rem) {
+  .dispatch-directory-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 75rem) {
+  .dispatch-directory-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.dispatch-directory-list>li {
+  display: flex;
+  min-width: 0;
 }
 
 .dispatch-summary {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  gap: .75rem;
-  padding: clamp(.875rem, 2vw, 1.25rem);
+  height: 100%;
+  min-height: 15.3125rem;
+  gap: .64375rem;
+  padding: 1.2875rem;
   background-color: var(--dispatch-surface);
   background-image: radial-gradient(ellipse 420px 220px at 84% 0%, color-mix(in srgb, var(--fg) 8%, transparent), transparent 70%);
   text-align: left;
   cursor: pointer;
+  transition: border-color 150ms;
 }
 
 .dark .dispatch-summary {
@@ -146,7 +168,7 @@
   border-color: var(--ring);
 }
 
-.dispatch-summary-header,
+.dispatch-summary-top,
 .dispatch-summary-footer,
 .dispatch-summary-badges,
 .dispatch-summary-counts,
@@ -154,31 +176,100 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: .5rem .75rem;
+  gap: .375rem .625rem;
 }
 
-.dispatch-summary-header,
+.dispatch-summary-top,
 .dispatch-summary-footer {
   justify-content: space-between;
 }
 
-.dispatch-summary-header>span:first-child {
+.dispatch-summary-top {
+  align-items: flex-start;
+}
+
+.dispatch-summary-badges {
+  justify-content: flex-end;
+}
+
+.dispatch-summary .dispatch-id {
+  padding: .12875rem .38625rem;
+  font-size: .708125rem;
+}
+
+.dispatch-summary-badges>span {
+  padding: .2575rem .64375rem;
+  font-size: .7725rem;
+  line-height: 1.03rem;
+}
+
+.dispatch-summary-body {
   display: grid;
   min-width: 0;
-  gap: .125rem;
+  gap: .25rem;
   overflow-wrap: anywhere;
 }
 
-.dispatch-summary-header small {
-  color: var(--muted-foreground);
-  font-size: .75rem;
+.dispatch-summary-title {
+  color: var(--foreground);
+  font-size: .965625rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-.dispatch-summary-footer {
+.dispatch-summary-venue {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: .7725rem;
+  line-height: 1.35;
+}
+
+.dispatch-summary-venue svg {
+  flex: none;
+}
+
+.dispatch-summary-meta {
+  display: grid;
+  gap: .4375rem;
+  min-width: 0;
   padding-top: .75rem;
   border-top: 1px solid var(--line);
   color: var(--muted-foreground);
-  font-size: .75rem;
+  font-size: .7725rem;
+  line-height: 1.35;
+}
+
+.dispatch-summary-meta-row {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dispatch-summary-meta-row svg {
+  flex: none;
+  color: #000000;
+}
+
+.dark .dispatch-summary-meta-row svg {
+  color: #ffffff;
+}
+
+.dispatch-summary-meta-row strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.dispatch-summary-footer {
+  margin-top: auto;
+  padding-top: .75rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted-foreground);
+  font-size: .7725rem;
 }
 
 .dispatch-summary-footer strong {
@@ -186,6 +277,7 @@
   align-items: center;
   gap: .375rem;
   color: var(--foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 .dispatch-summary-progress {
@@ -193,8 +285,31 @@
 }
 
 .dispatch-summary-progress .dispatch-progress {
-  width: 6rem;
+  --dispatch-accent: var(--color-success, #10b981);
+  width: 4.5rem;
   margin: 0;
+  color: var(--color-success, #10b981);
+}
+
+.dark .dispatch-summary-progress .dispatch-progress {
+  --dispatch-accent: var(--color-success, #10b981);
+  color: var(--color-success, #10b981);
+}
+
+.dispatch-summary-progress .dispatch-progress::-webkit-progress-value {
+  background: var(--color-success, #10b981);
+}
+
+.dark .dispatch-summary-progress .dispatch-progress::-webkit-progress-value {
+  background: var(--color-success, #10b981);
+}
+
+.dispatch-summary-progress .dispatch-progress::-moz-progress-bar {
+  background: var(--color-success, #10b981);
+}
+
+.dark .dispatch-summary-progress .dispatch-progress::-moz-progress-bar {
+  background: var(--color-success, #10b981);
 }
 
 .dispatch-roster-list {

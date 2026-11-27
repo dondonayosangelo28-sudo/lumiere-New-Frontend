@@ -88,11 +88,11 @@ const pageCopy: Record<EventManagerView, { title: string; copy: string }> = {
     copy: "Every occasion starts with a conversation.",
   },
   concepts: {
-    title: "Ideas worth pinning.",
+    title: "Mood Boards",
     copy: "Visual references, textures, and themes for your next occasion.",
   },
   creation: {
-    title: "Save the date.",
+    title: "Calendar",
     copy: "Every approved occasion, by the day it comes to life.",
   },
   assets: {
@@ -335,7 +335,11 @@ export default function EventManager({
       setThemeBoards(listThemeBoards(user))
     })
   const onThemeSaved = useCallback(
-    () => setThemeBoards(listThemeBoards(user)),
+    () => {
+      setThemeBoards(listThemeBoards(user))
+      setThemeEditor(null)
+      setDirty(false)
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user.email],
   )
@@ -571,11 +575,6 @@ export default function EventManager({
       {!editor && !themeEditor && (
         <PageHead
           crumb={label}
-          eyebrow={
-            view === "assets" || view === "studio" || view === "creation"
-              ? undefined
-              : label
-          }
           title={copy.title}
           copy={copy.copy}
           action={headAction}

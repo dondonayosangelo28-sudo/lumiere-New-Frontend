@@ -5,7 +5,7 @@ import {
   syncCatalogAssetsFromInventory,
 } from "../features/event-manager/model"
 import { validateAndComputeShiftSchedule } from "./staffing-calculator"
-import { buildSeedVendors } from "./store-vendors"
+import { buildSeedVendors, SEED_RENTAL_VENDOR_IDS } from "./store-vendors"
 import type {
   AfterShiftPhoto,
   CustomFabricationSpec,
@@ -213,6 +213,9 @@ export function migrateOperationsStore(
     vendors: Array.isArray(rawState.vendors)
       ? rawState.vendors.map((v) => ({
           ...v,
+          ...(SEED_RENTAL_VENDOR_IDS.has(v.id)
+            ? { vendorType: "Rental Asset" as const }
+            : {}),
           status:
             v.status === "On Hold" || v.status === "Inactive"
               ? v.status

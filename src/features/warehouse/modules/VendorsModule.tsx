@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react"
-import { Ban, Check, CheckCircle2, ChevronDown, Pencil, Plus, Search, Store, Trash2 } from "lucide-react"
+import { ArrowUpRight, Ban, CalendarDays, Check, CheckCircle2, ChevronDown, MapPin, Pencil, Plus, Search, Store, Trash2, X } from "lucide-react"
 import { fieldCls } from "../../../components/admin/AdminKit"
 import Modal from "../../../components/overlay/Modal"
 import Dropdown from "../../../components/ui/Dropdown"
@@ -24,6 +24,7 @@ import {
   RENTAL_CATEGORIES,
   updateVendor,
   useOperationsStore,
+  type OperationsNavigationContext,
   type OpsActor,
   type VendorInput,
   type VendorRecord,
@@ -31,6 +32,7 @@ import {
   type VendorType,
   type VendorValidationErrors,
 } from "../../../operations/store"
+import type { AcquisitionOrder } from "../../../operations/types"
 
 type VendorFilter = "All" | VendorStatus
 
@@ -54,19 +56,125 @@ function statusTone(status: VendorStatus): "success" | "warning" | "neutral" {
   return "neutral"
 }
 
-export default function VendorsModule({ actor }: { actor: OpsActor }) {
+function orderStatusTone(
+  status: AcquisitionOrder["status"],
+): "success" | "warning" | "info" | "neutral" {
+  if (status === "Received & Stocked") return "success"
+  if (status === "Partially Received") return "warning"
+  if (status === "Ordered") return "info"
+  return "neutral"
+}
+
+function formatOrderDate(value: string): string {
+  if (!value) return "—"
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim())
+  if (match) return match[1]
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toISOString().slice(0, 10)
+}
+
+function formatEventDate(value: string): string {
+  if (!value) return "Date TBD"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString("en-US", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+function formatPhp(amount: number): string {
+  return `₱${amount.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`
+}
+
+export default function VendorsModule({
+  actor,
+  onNavigate,
+}: {
+  actor: OpsActor
+  onNavigate?: (
+    route: string,
+    ctx?: string | Partial<OperationsNavigationContext>,
+  ) => void
+}) {
   const state = useOperationsStore()
   const notify = useNotify()
 
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<VendorFilter>("All")
+  const [viewingVendorId, setViewingVendorId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+
+  function openVendorDetails(vendorId: string) {
+    setViewingVendorId(vendorId)
+  }
   const [editingVendorId, setEditingVendorId] = useState<string | null>(null)
   const [draft, setDraft] = useState<VendorInput>(EMPTY_DRAFT)
   const [errors, setErrors] = useState<VendorValidationErrors>({})
   const [submitError, setSubmitError] = useState("")
 
-  const vendors = state.vendors ?? []
+  const vendors = useMemo(
+    () => (state.vendors ?? []).filter((v) => !v.archivedAt),
+    [state.vendors],
+  )
+
+  const viewingVendor = useMemo(
+    () =>
+      viewingVendorId
+        ? (vendors.find((v) => v.id === viewingVendorId) ?? null)
+        : null,
+    [vendors, viewingVendorId],
+  )
+
+  const viewingTaggedItems = useMemo(
+    () =>
+      viewingVendor
+        ? state.inventory.filter(
+          (item) => item.primaryVendorId === viewingVendor.id,
+        )
+        : [],
+    [state.inventory, viewingVendor],
+  )
+
+  const viewingOrders = useMemo(
+    () =>
+      viewingVendor
+        ? [...state.acquisitions]
+          .filter((acq) => acq.vendorId === viewingVendor.id)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        : [],
+    [state.acquisitions, viewingVendor],
+  )
+
+  const viewingEventHistory = useMemo(() => {
+    if (!viewingVendor || viewingVendor.vendorType !== "Rental Asset") return []
+    const byEvent = new Map<
+      string,
+      {
+        eventId: string
+        eventTitle: string
+        startDateTime: string
+        venue: string
+      }
+    >()
+    for (const order of state.orderRequests) {
+      if (!order.rentals.some((r) => r.vendorId === viewingVendor.id)) continue
+      if (!byEvent.has(order.eventId)) {
+        byEvent.set(order.eventId, {
+          eventId: order.eventId,
+          eventTitle: order.eventTitle,
+          startDateTime: order.startDateTime,
+          venue: order.venue,
+        })
+      }
+    }
+    return [...byEvent.values()].sort((a, b) =>
+      b.startDateTime.localeCompare(a.startDateTime),
+    )
+  }, [state.orderRequests, viewingVendor])
 
   const counts = useMemo(
     () => ({
@@ -208,15 +316,15 @@ export default function VendorsModule({ actor }: { actor: OpsActor }) {
       },
       vendor.status === "Inactive"
         ? {
-            label: "Set Active",
-            icon: CheckCircle2,
-            onClick: () => handleSetStatus(vendor, "Active"),
-          }
+          label: "Set Active",
+          icon: CheckCircle2,
+          onClick: () => handleSetStatus(vendor, "Active"),
+        }
         : {
-            label: "Set Inactive",
-            icon: Ban,
-            onClick: () => handleSetStatus(vendor, "Inactive"),
-          },
+          label: "Set Inactive",
+          icon: Ban,
+          onClick: () => handleSetStatus(vendor, "Inactive"),
+        },
       {
         label: "Delete",
         icon: Trash2,
@@ -230,7 +338,7 @@ export default function VendorsModule({ actor }: { actor: OpsActor }) {
     <div className="space-y-5">
       <PageHeader
         crumbs={["Dashboard", "Vendors"]}
-        title="Vendor Management"
+        title="Vendors"
         subtitle="Vendor directory and preferred-supplier routing."
         actions={
           <div className="sm:pt-3">
@@ -325,11 +433,11 @@ export default function VendorsModule({ actor }: { actor: OpsActor }) {
       ) : (
         <>
           {/* Desktop Table */}
-          <Card className="hidden overflow-hidden md:block">
+          <Card className="hidden overflow-hidden bg-none md:block">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-line bg-fg/[0.02] text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <thead className="bg-fg/[0.08] text-left">
+                  <tr className="border-b border-line text-xs font-semibold uppercase tracking-wider text-foreground">
                     <th className="px-5 py-3.5">Vendor</th>
                     <th className="px-5 py-3.5">Category</th>
                     <th className="px-5 py-3.5">Specialty</th>
@@ -343,12 +451,20 @@ export default function VendorsModule({ actor }: { actor: OpsActor }) {
                   {filtered.map((vendor) => (
                     <tr
                       key={vendor.id}
-                      className="transition-colors hover:bg-fg/[0.02]"
+                      onClick={() => openVendorDetails(vendor.id)}
+                      className="cursor-pointer transition-colors duration-150 hover:bg-fg/[0.04]"
                     >
                       <td className="px-5 py-4 align-top">
-                        <div className="font-semibold text-foreground">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openVendorDetails(vendor.id)
+                          }}
+                          className="rounded-sm text-left font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                        >
                           {vendor.name}
-                        </div>
+                        </button>
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {vendor.contactPerson}
                         </div>
@@ -376,7 +492,10 @@ export default function VendorsModule({ actor }: { actor: OpsActor }) {
                         </Badge>
                       </td>
                       <td className="px-5 py-4 align-top text-right">
-                        <div className="inline-flex justify-end">
+                        <div
+                          className="inline-flex justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <RowMenu items={vendorMenuItems(vendor)} />
                         </div>
                       </td>
@@ -390,41 +509,269 @@ export default function VendorsModule({ actor }: { actor: OpsActor }) {
           {/* Mobile Cards */}
           <div className="space-y-3 md:hidden">
             {filtered.map((vendor) => (
-              <Card key={vendor.id} className="p-4 space-y-2.5 text-xs">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold text-foreground text-sm">
-                      {vendor.name}
+              <div
+                key={vendor.id}
+                onClick={() => openVendorDetails(vendor.id)}
+                className="cursor-pointer"
+              >
+                <Card className="p-4 space-y-2.5 text-xs transition-colors hover:bg-fg/[0.02]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openVendorDetails(vendor.id)
+                        }}
+                        className="rounded-sm text-left text-sm font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                      >
+                        {vendor.name}
+                      </button>
+                      <div className="text-muted-foreground">
+                        {vendor.contactPerson} · {vendor.category}
+                      </div>
                     </div>
-                    <div className="text-muted-foreground">
-                      {vendor.contactPerson} · {vendor.category}
+                    <div className="flex items-center gap-2">
+                      <Badge tone={statusTone(vendor.status)}>
+                        {vendor.status}
+                      </Badge>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <RowMenu items={vendorMenuItems(vendor)} />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={statusTone(vendor.status)}>
-                      {vendor.status}
-                    </Badge>
-                    <RowMenu items={vendorMenuItems(vendor)} />
+                  <div className="text-muted-foreground">{vendor.specialty}</div>
+                  <div className="grid grid-cols-1 gap-1.5 pt-1 text-[11px]">
+                    <div>
+                      <span className="text-muted-foreground">Location: </span>
+                      <span className="text-foreground">{vendor.location}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Contact: </span>
+                      <span className="text-foreground">
+                        {[vendor.email, vendor.phone].filter(Boolean).join(" · ") || "—"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="text-muted-foreground">{vendor.specialty}</div>
-                <div className="grid grid-cols-1 gap-1.5 pt-1 text-[11px]">
-                  <div>
-                    <span className="text-muted-foreground">Location: </span>
-                    <span className="text-foreground">{vendor.location}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Contact: </span>
-                    <span className="text-foreground">
-                      {[vendor.email, vendor.phone].filter(Boolean).join(" · ") || "—"}
-                    </span>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             ))}
           </div>
         </>
       )}
+
+      {/* Vendor Details Modal (Read-Only) */}
+      <Modal
+        open={!!viewingVendor}
+        onClose={() => setViewingVendorId(null)}
+        title={viewingVendor ? `${viewingVendor.name} details` : "Vendor Details"}
+        hideHeader
+        panelClassName="max-w-[472px]! p-0!"
+      >
+        {viewingVendor && (
+          <div>
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-line px-5 pt-4 pb-3.5">
+              <div className="min-w-0 space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  {viewingVendor.category || viewingVendor.specialty || "Uncategorized"}
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="break-words text-xl font-semibold tracking-tight text-foreground">
+                    {viewingVendor.name}
+                  </h2>
+                  <Badge tone={statusTone(viewingVendor.status)}>
+                    <span className="inline-flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                      <span
+                        aria-hidden="true"
+                        className="size-1.5 rounded-full bg-current"
+                      />
+                      {viewingVendor.status}
+                    </span>
+                  </Badge>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingVendorId(null)}
+                aria-label="Close"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-elev hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="space-y-4 px-5 py-4">
+              {/* Contact */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="min-h-16 min-w-0 rounded-xl border border-line bg-elev/50 px-3.5 py-3 dark:bg-fg/[0.03]">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Contact
+                  </div>
+                  <div
+                    className="mt-1 break-words text-sm font-medium text-foreground"
+                    title={viewingVendor.contactPerson || undefined}
+                  >
+                    {viewingVendor.contactPerson || "Not provided"}
+                  </div>
+                </div>
+                <div className="min-h-16 min-w-0 rounded-xl border border-line bg-elev/50 px-3.5 py-3 dark:bg-fg/[0.03]">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Phone
+                  </div>
+                  <div
+                    className="mt-1 break-words text-sm font-medium text-foreground"
+                    title={viewingVendor.phone || undefined}
+                  >
+                    {viewingVendor.phone || "Not provided"}
+                  </div>
+                </div>
+                <div className="min-h-16 min-w-0 rounded-xl border border-line bg-elev/50 px-3.5 py-3 sm:col-span-2 dark:bg-fg/[0.03]">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Email
+                  </div>
+                  <div className="mt-1 break-all text-sm font-medium text-foreground">
+                    {viewingVendor.email || "Not provided"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tagged Items */}
+              {viewingVendor.vendorType !== "Rental Asset" && (
+                <div>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Tagged Items
+                  </h3>
+                  {viewingTaggedItems.length > 0 ? (
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      {viewingTaggedItems.map((item) => (
+                        <span
+                          key={item.assetId}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-300"
+                        >
+                          <span>Primary</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{item.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 rounded-xl border border-dashed border-line bg-fg/[0.02] px-4 py-3 text-xs text-muted-foreground">
+                      No inventory items are tagged with this vendor as primary supplier.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Order History (Event Asset) or Event History (Rental Asset) */}
+              {viewingVendor.vendorType === "Rental Asset" ? (
+                <div>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Event History
+                  </h3>
+                  {viewingEventHistory.length > 0 ? (
+                    <div className="mt-2.5 space-y-2.5">
+                      {viewingEventHistory.map((ev) => (
+                        <div
+                          key={ev.eventId}
+                          className="rounded-xl border border-line bg-card/65 p-3.5"
+                        >
+                          <div className="min-w-0">
+                            {onNavigate ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewingVendorId(null)
+                                  onNavigate("module-events", { eventId: ev.eventId })
+                                }}
+                                className="inline-flex max-w-full items-center gap-1 rounded-sm text-left text-sm font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                              >
+                                <span className="break-words">{ev.eventTitle}</span>
+                                <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                              </button>
+                            ) : (
+                              <div className="break-words text-sm font-semibold text-foreground">
+                                {ev.eventTitle}
+                              </div>
+                            )}
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />
+                                <span>{formatEventDate(ev.startDateTime)}</span>
+                              </span>
+                              {ev.venue && (
+                                <span className="inline-flex min-w-0 items-start gap-1">
+                                  <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                                  <span className="break-words">{ev.venue}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 rounded-xl border border-dashed border-line bg-fg/[0.02] px-4 py-3 text-xs text-muted-foreground">
+                      No events linked to this vendor yet.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Order History
+                  </h3>
+                  {viewingOrders.length > 0 ? (
+                    <div className="mt-2.5 overflow-hidden rounded-xl border border-line">
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-line bg-elev/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-fg/[0.03]">
+                              <th className="px-4 py-2.5">Date</th>
+                              <th className="px-4 py-2.5">Item</th>
+                              <th className="px-4 py-2.5">Qty</th>
+                              <th className="px-4 py-2.5">Unit Cost</th>
+                              <th className="px-4 py-2.5">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-line">
+                            {viewingOrders.map((order) => (
+                              <tr key={order.id} className="hover:bg-fg/[0.02]">
+                                <td className="whitespace-nowrap px-4 py-3 font-mono text-muted-foreground">
+                                  {formatOrderDate(order.createdAt)}
+                                </td>
+                                <td className="px-4 py-3 font-medium text-foreground">
+                                  {order.assetName}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">
+                                  {order.quantity}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 font-mono tabular-nums text-muted-foreground">
+                                  {order.unitCost > 0 ? formatPhp(order.unitCost) : "—"}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3">
+                                  <Badge tone={orderStatusTone(order.status)}>
+                                    {order.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 rounded-xl border border-dashed border-line bg-fg/[0.02] px-4 py-3 text-xs text-muted-foreground">
+                      No acquisition orders recorded for this vendor yet.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Add / Edit Vendor Modal */}
       <Modal

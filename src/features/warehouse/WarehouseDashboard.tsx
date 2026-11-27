@@ -574,7 +574,7 @@ export default function WarehouseDashboard({ onNavigate }: WarehouseDashboardPro
       {/* ─── Shared Overview-style PageHeader with search in actions ─── */}
       <PageHeader
         crumbs={["Dashboard"]}
-        title="Overview"
+        title="Dashboard"
         subtitle="Operational readiness, production & staffing summaries, action queue, and Asia/Manila fulfillment calendar."
         onHome={() => onNavigate("overview")}
         actions={
@@ -602,7 +602,7 @@ export default function WarehouseDashboard({ onNavigate }: WarehouseDashboardPro
         }
       />
 
-      <div className="dashboard-surfaces space-y-4">
+      <div className="dashboard-surfaces warehouse-dashboard-surfaces space-y-4">
         <OperationsPersistenceBanner />
 
         {/* ─── Admin-Style Top Split: Left Hero + 4 Metrics, Right Warehouse Action Queue ─── */}

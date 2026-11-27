@@ -174,7 +174,7 @@ export default function WarehouseModulePage({
         )
 
       case "vendors":
-        return <VendorsModule actor={actor} />
+        return <VendorsModule actor={actor} onNavigate={onNavigate} />
 
       case "crew-scheduling":
       case "personnel-deployment":

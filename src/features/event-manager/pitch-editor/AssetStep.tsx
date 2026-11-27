@@ -28,7 +28,7 @@ import {
 } from "../model"
 import { previewStudio } from "../preview-data"
 import RentalEntry from "../rentals/RentalEntry"
-import { addEventSupplier, isSupplierAdded } from "../rentals/event-rentals"
+import { addEventSupplier, isSupplierAdded, rentalDisplay } from "../rentals/event-rentals"
 import { rentalCatalogOptions } from "../rentals/rental-catalog"
 import {
   FieldError,
@@ -62,6 +62,11 @@ export function AssetStep({
   const [rental, setRental] = useState("")
   const [rentalError, setRentalError] = useState("")
   const [requestPrompt, setRequestPrompt] = useState<{ id: string; quantity: number; available: number; shortage: number } | null>(null)
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    kind: "asset" | "custom" | "rental"
+    id: string
+    name: string
+  } | null>(null)
   const [localPickerRequest, setLocalPickerRequest] = useState(0)
   const [pick, setPick] = useState("")
   const [sameDay, setSameDay] = useState<number | null>(null)
@@ -445,7 +450,10 @@ export function AssetStep({
                         <button
                           type="button"
                           className="em-icon-btn"
-                          onClick={() => removeReq(a.id)}
+                          onClick={() =>
+                            !r.boardQuantity &&
+                            setPendingRemoval({ kind: "asset", id: a.id, name: a.name })
+                          }
                           disabled={!!r.boardQuantity}
                           title={r.boardQuantity ? "Remove this asset from the mood board first." : `Remove ${a.name}`}
                           aria-label={`Remove ${a.name}`}
@@ -787,8 +795,14 @@ export function AssetStep({
                           type="button"
                           variant="ghost"
                           icon={X}
+                          className={cx(
+                            "active:text-destructive!",
+                            pendingRemoval?.kind === "custom" &&
+                              pendingRemoval.id === ci.id &&
+                              "text-destructive!",
+                          )}
                           onClick={() =>
-                            setCustomItems(customItems.filter((item) => item.id !== ci.id))
+                            setPendingRemoval({ kind: "custom", id: ci.id, name: ci.name })
                           }
                         >
                           Remove
@@ -846,14 +860,21 @@ export function AssetStep({
                 const whRental = warehouseOrder?.rentals.find(
                   (wr) => wr.id === r.id || (r.vendorId && wr.vendorId === r.vendorId),
                 )
+                const details = rentalDisplay(r)
+                const supplierName = details.vendorCompany || details.itemName
                 return (
                   <RentalEntry
                     key={r.id}
                     entry={r}
                     readOnly={readOnly}
                     warehouseRental={whRental}
+                    isPendingRemoval={
+                      pendingRemoval?.kind === "rental" && pendingRemoval.id === r.id
+                    }
                     onChange={(patch) => patchRental(r.id, patch)}
-                    onRemove={() => setRentals(brief.rentals.filter((entry) => entry.id !== r.id))}
+                    onRemove={() =>
+                      setPendingRemoval({ kind: "rental", id: r.id, name: supplierName })
+                    }
                   />
                 )
               })}
@@ -907,6 +928,55 @@ export function AssetStep({
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => { setRequestPrompt(null); requestAnimationFrame(() => setLocalPickerRequest((n) => n + 1)) }}>Choose alternatives</Button>
           <Button type="button" onClick={() => { if (!requestPrompt) return; setQty(requestPrompt.id, requestPrompt.quantity, true); setRequestPrompt(null) }}>Confirm request</Button>
+        </div>
+      </Modal>
+      <Modal
+        open={!!pendingRemoval}
+        onClose={() => setPendingRemoval(null)}
+        title={
+          pendingRemoval?.kind === "asset"
+            ? "Remove stock asset?"
+            : pendingRemoval?.kind === "custom"
+              ? "Remove custom fabrication item?"
+              : "Remove rental supplier?"
+        }
+        compact
+      >
+        <p className="text-sm text-muted-foreground">
+          {pendingRemoval?.kind === "asset"
+            ? `Remove “${pendingRemoval.name}” from this event's asset plan?`
+            : pendingRemoval?.kind === "custom"
+              ? `Remove “${pendingRemoval.name}” from custom fabrication items?`
+              : pendingRemoval
+                ? `Remove “${pendingRemoval.name}” from rentals & technical services?`
+                : null}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPendingRemoval(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => {
+              if (!pendingRemoval || readOnly) return
+              if (pendingRemoval.kind === "asset") {
+                const req = brief.requirements.find((item) => item.assetId === pendingRemoval.id)
+                if (!req?.boardQuantity) removeReq(pendingRemoval.id)
+              } else if (pendingRemoval.kind === "custom") {
+                setCustomItems(customItems.filter((item) => item.id !== pendingRemoval.id))
+              } else {
+                setRentals(brief.rentals.filter((entry) => entry.id !== pendingRemoval.id))
+              }
+              setPendingRemoval(null)
+            }}
+          >
+            Remove
+          </Button>
         </div>
       </Modal>
     </div>

@@ -41,7 +41,7 @@ const blankDetails = (): ThemeDetails => ({
   name: "Untitled theme",
   category: "",
   description: "",
-  palette: [...DEFAULT_PALETTE],
+  palette: ["#ffffff", "#ffffff", "#ffffff"],
 })
 const initial = (board: ThemeBoard | null): Content => {
   if (board)
