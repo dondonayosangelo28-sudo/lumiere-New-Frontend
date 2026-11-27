@@ -169,7 +169,7 @@ export default function SettingsPage({ account, tab, go, onHome }: { account: Ac
               onClick={() => go(t.id)}
               className={cx(
                 'relative mb-1.5 flex w-full items-center gap-2 overflow-hidden rounded-md px-4 py-3 text-[14px] font-semibold transition-colors duration-150',
-                tab === t.id ? 'bg-fg/20 text-foreground' : 'text-foreground hover:bg-fg/[0.06]',
+                tab === t.id ? 'bg-[#f5f5f5] text-foreground dark:bg-fg/20' : 'text-foreground hover:bg-[#f5f5f5]/80 dark:hover:bg-fg/[0.06]',
               )}
             >
               {tab === t.id && <span className="absolute inset-y-0 left-0 w-[3px] bg-fg" />}

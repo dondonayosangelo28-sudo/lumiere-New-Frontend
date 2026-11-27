@@ -226,7 +226,7 @@ export default function DamageMissingReportsModule({
 
       {/* Summary Strip */}
       <div className="dashboard-surfaces">
-        <Card className="dashboard-welcome relative overflow-hidden">
+        <Card className="relative overflow-hidden">
           <dl className="grid grid-cols-2 divide-y divide-line sm:grid-cols-4 sm:divide-x sm:divide-y-0">
             {[
               { label: "Total Reports", value: counts.all },

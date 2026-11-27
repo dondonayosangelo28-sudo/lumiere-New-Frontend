@@ -9,7 +9,7 @@ export function cx(...c: (string | false | null | undefined)[]) {
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx('dashboard-card rounded-xl border border-edge bg-card text-foreground bg-[linear-gradient(180deg,rgba(255,255,255,0.025),transparent_60%)]', className)}>{children}</div>
+  return <div className={cx('dashboard-card rounded-xl border border-edge bg-card text-foreground dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.025),transparent_60%)]', className)}>{children}</div>
 }
 
 export function PageHeader({
@@ -122,7 +122,7 @@ export function Input({ icon: Icon, className, ...rest }: InputHTMLAttributes<HT
       <input
         {...rest}
         className={cx(
-          'h-10 w-full rounded-md border border-fg/[0.06] bg-fg/[0.08] px-3 text-[14px] text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-fg/25 focus:ring-2 focus:ring-fg/10 disabled:cursor-default disabled:text-muted-foreground',
+          'h-10 w-full rounded-md border border-line bg-field px-3 text-[14px] text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-fg/25 focus:ring-2 focus:ring-fg/10 disabled:cursor-default disabled:text-muted-foreground dark:border-fg/[0.06] dark:bg-fg/[0.08]',
           Icon && 'pl-10',
           className,
         )}
@@ -176,7 +176,7 @@ export function StatCard({
   return (
     <Card className={cx('stat-card relative overflow-hidden p-4', aligned && 'flex h-full flex-col')}>
       <div className={cx('flex gap-3', aligned ? 'flex-1 items-start' : 'items-center')}>
-        <span className={cx('grid size-10 shrink-0 place-items-center rounded-md', iconClassName ?? 'bg-fg/20 text-foreground')}>
+        <span className={cx('grid size-10 shrink-0 place-items-center rounded-md', iconClassName ?? 'bg-[#f5f5f5] text-foreground dark:bg-fg/20')}>
           <Icon size={20} strokeWidth={1.6} aria-hidden />
         </span>
         <span className={cx('flex-1 text-[14px] font-semibold text-muted-foreground', aligned && 'min-w-0 self-center break-words')}>{title}</span>
@@ -243,11 +243,11 @@ export function Segmented<T extends string>({
 }) {
   const idx = Math.max(0, options.findIndex((o) => o.value === value))
   return (
-    <div className="relative flex rounded-xl bg-fg/[0.04] p-2">
+    <div className="relative flex rounded-xl border border-line bg-card p-2 dark:border-transparent dark:bg-fg/[0.04]">
       {/* Active pill slides between options */}
       <span
         aria-hidden
-        className="absolute bottom-2 top-2 rounded-md bg-fg/20 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        className="absolute bottom-2 top-2 rounded-md bg-[#f5f5f5] transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] dark:bg-fg/20"
         style={{ width: `calc((100% - 16px) / ${options.length})`, left: 8, transform: `translateX(${idx * 100}%)` }}
       />
       {options.map((o, index) => (

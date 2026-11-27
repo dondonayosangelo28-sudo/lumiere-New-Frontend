@@ -578,7 +578,7 @@ export default function WarehouseDashboard({ onNavigate }: WarehouseDashboardPro
         subtitle="Operational readiness, production & staffing summaries, action queue, and Asia/Manila fulfillment calendar."
         onHome={() => onNavigate("overview")}
         actions={
-          <div className="search-control relative flex h-10 w-full items-center gap-2 rounded-full border border-border bg-card px-3.5 text-[14px] text-foreground transition-colors not-dark:hover:border-fg/20 not-dark:focus-within:border-fg/25 not-dark:focus-within:ring-2 not-dark:focus-within:ring-fg/10 sm:w-72">
+          <div className="search-control relative flex h-10 w-full items-center gap-2 rounded-full border border-line bg-field px-3.5 text-[14px] text-foreground transition-colors not-dark:hover:border-fg/20 not-dark:focus-within:border-fg/25 not-dark:focus-within:ring-2 not-dark:focus-within:ring-fg/10 sm:w-72 dark:border-border dark:bg-card">
             <Search size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
             <input
               type="text"

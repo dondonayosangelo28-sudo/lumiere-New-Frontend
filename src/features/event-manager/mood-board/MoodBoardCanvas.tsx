@@ -10,11 +10,11 @@ import {
   Download,
   Eye,
   FileText,
-  Hand,
   Image as ImageIcon,
   LayoutGrid,
   Loader2,
   Maximize2,
+  MonitorPlay,
   PanelsTopLeft,
   Pencil,
   Plus,
@@ -22,7 +22,6 @@ import {
   StickyNote,
   Trash2,
   Undo2,
-  X,
   type LucideIcon,
 } from "lucide-react"
 
@@ -206,10 +205,10 @@ export default function MoodBoardCanvas({
   const pin = brief.pins.find((p) => p.id === selected)
   const isEditableTextSelected = Boolean(
     isEditing &&
-      pin &&
-      !pin.locked &&
-      !pin.image &&
-      (!pin.kind || pin.kind === "text" || pin.kind === "sticky"),
+    pin &&
+    !pin.locked &&
+    !pin.image &&
+    (!pin.kind || pin.kind === "text" || pin.kind === "sticky"),
   )
   const palette = paletteOverride?.length ? paletteOverride : themeByName(brief.theme)?.palette ?? ["#d6c7b3", "#f0e7db", "#7a8069"]
 
@@ -1009,14 +1008,21 @@ export default function MoodBoardCanvas({
           )}
         </div>
         <div className="mb-context-end">
-          {full && <Button type="button" variant="outline" icon={X} onClick={onExitFullScreen}>Exit full screen</Button>}
-          {iconButton(
-            Hand,
-            "Pan",
-            () => setTool(tool === "pan" ? "select" : "pan"),
-            { active: tool === "pan" },
+          {(full || onPresent) && (
+            <Button
+              type="button"
+              variant="outline"
+              icon={MonitorPlay}
+              data-present-board={!full || undefined}
+              className={cx(
+                "bg-transparent! font-normal!",
+                full && "hover:border-destructive! hover:bg-destructive/10! hover:text-destructive!",
+              )}
+              onClick={full ? onExitFullScreen : onPresent}
+            >
+              {full ? "Exit Present" : "Present"}
+            </Button>
           )}
-          {!full && onPresent && <Button type="button" variant="outline" icon={Eye} data-present-board onClick={onPresent}>Present board</Button>}
           <Menu.Root
             modal={false}
             open={exportOpen}
@@ -1127,50 +1133,50 @@ export default function MoodBoardCanvas({
             ) : (
               <div key={tab === "templates" ? selectedTheme ?? "templates" : tab} className="mb-panel-scroll">
                 <CanvasSidebarPanels
-                tab={tab}
-                brief={brief}
-                readOnly={!isEditing}
-                page={page}
-                pages={pages}
-                palette={palette}
-                docColors={docColors}
-                shelf={shelf}
-                onAddShelf={onAddShelf}
-                pin={pin}
-                fillFrame={fillFrame}
-                add={add}
-                applyTemplate={applyTemplate}
-                applyTheme={applyTheme}
-                themeTemplates={themeTemplates}
-                selectedTheme={selectedTheme}
-                setSelectedTheme={setSelectedTheme}
-                query={query}
-                setQuery={setQuery}
-                category={category}
-                setCategory={setCategory}
-                web={web}
-                setWeb={setWeb}
-                link={link}
-                setLink={setLink}
-                linkError={linkError}
-                setLinkError={setLinkError}
-                uploading={uploading}
-                upload={upload}
-                inputRef={input}
-                duplicate={duplicate}
-                tool={tool}
-                setTool={setTool}
-                penColor={penColor}
-                setPenColor={setPenColor}
-                patchPin={patchPin}
-                reorder={reorder}
-                stepLayer={stepLayer}
-                alignTo={alignTo}
-                goTo={goTo}
-                selected={selected}
-                select={onSelect}
-                setPins={(pins) => update({ pins })}
-              />
+                  tab={tab}
+                  brief={brief}
+                  readOnly={!isEditing}
+                  page={page}
+                  pages={pages}
+                  palette={palette}
+                  docColors={docColors}
+                  shelf={shelf}
+                  onAddShelf={onAddShelf}
+                  pin={pin}
+                  fillFrame={fillFrame}
+                  add={add}
+                  applyTemplate={applyTemplate}
+                  applyTheme={applyTheme}
+                  themeTemplates={themeTemplates}
+                  selectedTheme={selectedTheme}
+                  setSelectedTheme={setSelectedTheme}
+                  query={query}
+                  setQuery={setQuery}
+                  category={category}
+                  setCategory={setCategory}
+                  web={web}
+                  setWeb={setWeb}
+                  link={link}
+                  setLink={setLink}
+                  linkError={linkError}
+                  setLinkError={setLinkError}
+                  uploading={uploading}
+                  upload={upload}
+                  inputRef={input}
+                  duplicate={duplicate}
+                  tool={tool}
+                  setTool={setTool}
+                  penColor={penColor}
+                  setPenColor={setPenColor}
+                  patchPin={patchPin}
+                  reorder={reorder}
+                  stepLayer={stepLayer}
+                  alignTo={alignTo}
+                  goTo={goTo}
+                  selected={selected}
+                  select={onSelect}
+                  setPins={(pins) => update({ pins })}
+                />
               </div>
             )}
             <button
@@ -1505,7 +1511,22 @@ export default function MoodBoardCanvas({
                 () => setPageGrid((v) => !v),
                 { active: pageGrid },
               )}
-              {iconButton(Maximize2, "Present full screen", () => setPresenting(true))}
+              {iconButton(Maximize2, "Present full screen", () => {
+                setPresenting(true)
+                const el = document.documentElement as HTMLElement & {
+                  webkitRequestFullscreen?: () => Promise<void> | void
+                }
+                try {
+                  if (typeof el.requestFullscreen === "function") {
+                    const res = el.requestFullscreen()
+                    if (res && typeof res.catch === "function") void res.catch(() => {})
+                  } else if (typeof el.webkitRequestFullscreen === "function") {
+                    el.webkitRequestFullscreen()
+                  }
+                } catch {
+                  // Fullscreen unavailable or denied; full-page presentation fallback remains active.
+                }
+              })}
             </div>
           </div>
         </div>

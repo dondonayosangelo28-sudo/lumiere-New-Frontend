@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown, RefreshCw, Search } from 'lucide-react'
 import { cx } from '../ui/ui'
 
-export const fieldCls = 'h-10 w-full rounded-md border border-fg/[0.06] bg-fg/[0.05] px-3 text-[14px] text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-fg/25 focus:ring-2 focus:ring-fg/10 disabled:cursor-default disabled:text-muted-foreground aria-[invalid=true]:border-red-400'
+export const fieldCls = 'h-10 w-full rounded-md border border-line bg-field px-3 text-[14px] text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-fg/25 focus:ring-2 focus:ring-fg/10 disabled:cursor-default disabled:text-muted-foreground aria-[invalid=true]:border-red-400 dark:border-fg/[0.06] dark:bg-fg/[0.05]'
 export const ghostBtn = 'flex h-8 whitespace-nowrap items-center gap-2 rounded-full px-3 text-[13px] font-semibold transition-colors hover:bg-fg/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:pointer-events-none disabled:text-muted-foreground'
 
 /* ---------- Time ---------- */

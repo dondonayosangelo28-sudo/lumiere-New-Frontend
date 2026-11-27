@@ -1106,7 +1106,7 @@ export default function ReplenishmentDeficitsModule({
 
       {/* Summary Cards */}
       <div className="dashboard-surfaces grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="dashboard-welcome relative overflow-hidden p-4">
+        <Card className="relative overflow-hidden p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Open Deficits
           </div>
@@ -1114,7 +1114,7 @@ export default function ReplenishmentDeficitsModule({
             {summaryMetrics.openDeficits}
           </div>
         </Card>
-        <Card className="dashboard-welcome relative overflow-hidden p-4">
+        <Card className="relative overflow-hidden p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-red-500">
             Critical
           </div>
@@ -1122,7 +1122,7 @@ export default function ReplenishmentDeficitsModule({
             {summaryMetrics.critical}
           </div>
         </Card>
-        <Card className="dashboard-welcome relative overflow-hidden p-4">
+        <Card className="relative overflow-hidden p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-500">
             High Priority
           </div>
@@ -1130,7 +1130,7 @@ export default function ReplenishmentDeficitsModule({
             {summaryMetrics.high}
           </div>
         </Card>
-        <Card className="dashboard-welcome relative overflow-hidden p-4">
+        <Card className="relative overflow-hidden p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Order Candidates
           </div>
@@ -1161,7 +1161,7 @@ export default function ReplenishmentDeficitsModule({
               {eventGroups.map((group) => {
                 const isOpen = Boolean(expandedEvents[group.eventId])
                 return (
-                  <Card key={group.eventId} className="dashboard-welcome relative overflow-hidden">
+                  <Card key={group.eventId} className="relative overflow-hidden">
                     <button
                       type="button"
                       onClick={() =>
@@ -1319,7 +1319,7 @@ export default function ReplenishmentDeficitsModule({
                   }
                 }
                 return (
-                  <Card className="dashboard-welcome relative overflow-hidden">
+                  <Card className="relative overflow-hidden">
                     <button
                       type="button"
                       onClick={() =>

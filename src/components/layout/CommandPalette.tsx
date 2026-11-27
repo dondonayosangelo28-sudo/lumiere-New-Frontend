@@ -47,9 +47,9 @@ export default function CommandPalette({ role, open, onClose, go }: { role: Role
           else if (e.key === 'ArrowUp') { e.preventDefault(); setI((v) => Math.max(0, v - 1)) }
           else if (e.key === 'Enter') choose(i)
         }}
-        className="relative flex h-fit max-h-[calc(100dvh-112px)] w-[560px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-2xl border border-line bg-card text-foreground shadow-[0_24px_60px_rgba(0,0,0,0.75)] outline-none animate-fade-up"
+        className="relative flex h-fit max-h-[calc(100dvh-112px)] w-[560px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-2xl border border-line bg-card text-foreground shadow-[0_20px_50px_rgba(15,23,42,0.14)] outline-none animate-fade-up dark:shadow-[0_24px_60px_rgba(0,0,0,0.75)]"
       >
-        <div className="search-control flex h-[60px] items-center gap-3 border-b border-[#242424] px-5">
+        <div className="search-control flex h-[60px] items-center gap-3 border-b border-line bg-field px-5 dark:border-[#242424]">
           <Search size={18} className="shrink-0 text-muted-foreground" />
           <input
             ref={input}
@@ -61,7 +61,7 @@ export default function CommandPalette({ role, open, onClose, go }: { role: Role
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid size-7 place-items-center rounded-full bg-[#242424] text-muted-foreground transition-colors hover:bg-[#323232] hover:text-white"
+            className="grid size-7 place-items-center rounded-full bg-elev text-muted-foreground transition-colors hover:bg-line hover:text-foreground dark:bg-[#242424] dark:hover:bg-[#323232] dark:hover:text-white"
           >
             <X size={14} />
           </button>
@@ -75,13 +75,13 @@ export default function CommandPalette({ role, open, onClose, go }: { role: Role
               onClick={() => choose(n)}
               className={cx(
                 'flex w-full items-center gap-3.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
-                n === i ? 'border-[#5c5c60] bg-[#3b3b3e]' : 'border-transparent hover:bg-white/[0.04]',
+                n === i ? 'border-line bg-[#f5f5f5] dark:border-[#5c5c60] dark:bg-[#3b3b3e]' : 'border-transparent hover:bg-[#f5f5f5]/75 dark:hover:bg-white/[0.04]',
               )}
             >
               <span
                 className={cx(
                   'grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground',
-                  n === i ? 'bg-[#4b4b4f]' : 'bg-[#2a2a2d]',
+                  n === i ? 'bg-white text-foreground ring-1 ring-line dark:bg-[#4b4b4f] dark:text-muted-foreground dark:ring-0' : 'bg-field dark:bg-[#2a2a2d]',
                 )}
               >
                 <File size={15} strokeWidth={1.75} />
@@ -94,11 +94,11 @@ export default function CommandPalette({ role, open, onClose, go }: { role: Role
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-between border-t border-[#323235] bg-[#2a2a2d] px-4 py-2.5 text-[12px] text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-line bg-field px-4 py-2.5 text-[12px] text-muted-foreground dark:border-[#323235] dark:bg-[#2a2a2d]">
           <span className="flex items-center gap-4">
             {[['↑↓', 'to navigate'], ['↵', 'to select'], ['esc', 'to close']].map(([k, l]) => (
               <span key={l} className="flex items-center gap-1.5">
-                <kbd className="rounded bg-[#141414] px-1.5 py-0.5 font-mono text-[10px] leading-4 text-muted-foreground">{k}</kbd>
+                <kbd className="rounded border border-line bg-white px-1.5 py-0.5 font-mono text-[10px] leading-4 text-muted-foreground dark:border-transparent dark:bg-[#141414]">{k}</kbd>
                 {l}
               </span>
             ))}

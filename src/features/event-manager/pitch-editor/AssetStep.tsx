@@ -466,7 +466,7 @@ export function AssetStep({
 
         <section className="em-panel em-step-panel">
           <StepHead
-            eyebrow="Custom fabrication (D02)"
+            eyebrow="Custom fabrication"
             title="Custom-built structures & bespoke pieces"
             description="Register custom items under the same event Asset Plan with dimensions, reference imagery, materials, colors, finish, and build instructions for Warehouse production verification."
             actions={

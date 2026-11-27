@@ -453,7 +453,7 @@ export default function PersonnelDeploymentModule({
                 const isUnstaffed = roster.length === 0 && activeShifts.length === 0
 
                 return (
-                  <Card key={o.id} className="dashboard-welcome relative overflow-hidden p-4 sm:p-5 space-y-3">
+                  <Card key={o.id} className="relative overflow-hidden p-4 sm:p-5 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -531,7 +531,7 @@ export default function PersonnelDeploymentModule({
                       : "Not selected"
 
                 return (
-                  <Card key={o.id} className="dashboard-welcome relative overflow-hidden p-5 space-y-4">
+                  <Card key={o.id} className="relative overflow-hidden p-5 space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">

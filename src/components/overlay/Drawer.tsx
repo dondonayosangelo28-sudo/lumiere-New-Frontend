@@ -34,7 +34,7 @@ export default function Drawer({ open, onClose, title, subtitle, eyebrow, titleC
         aria-modal="true"
         aria-label={title}
         className={cx(
-          'absolute right-0 flex w-[448px] outline-none max-w-full flex-col bg-[#191919] shadow-[-20px_0_60px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] dark:bg-[#191919] [:root:not(.dark)_&]:bg-white',
+          'absolute right-0 flex w-[448px] outline-none max-w-full flex-col bg-[#191919] shadow-[-20px_0_60px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] dark:bg-[#191919] not-dark:border-l not-dark:border-line not-dark:shadow-[-16px_0_40px_rgba(15,23,42,0.1)] [:root:not(.dark)_&]:bg-white',
           compact ? 'top-6 max-h-[calc(100dvh-48px)] overflow-hidden' : 'inset-y-0',
           shown ? 'translate-x-0' : 'translate-x-full',
         )}

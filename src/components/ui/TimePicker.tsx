@@ -92,7 +92,7 @@ export default function TimePicker({
       <Popover.Trigger
         {...aria}
         disabled={disabled}
-        className="flex h-10 w-full items-center justify-between gap-1 rounded-md border border-fg/[0.06] bg-fg/[0.08] px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-fg/30 disabled:cursor-default disabled:opacity-60"
+        className="flex h-10 w-full items-center justify-between gap-1 rounded-md border border-line bg-field px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-fg/30 disabled:cursor-default disabled:opacity-60 dark:border-fg/[0.06] dark:bg-fg/[0.08]"
       >
         <span className={cx("whitespace-nowrap tabular-nums", !hasTime && "text-muted-foreground")}>
           {hasTime ? `${hourText}:${minuteText} ${period}` : "--:-- --"}

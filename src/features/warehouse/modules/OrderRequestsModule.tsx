@@ -390,7 +390,7 @@ export default function OrderRequestsModule({
               return (
                 <Card
                   key={item.id}
-                  className="dashboard-welcome min-w-0 overflow-hidden transition-colors hover:border-fg/30"
+                  className="min-w-0 overflow-hidden transition-colors hover:border-fg/30"
                 >
                   <button
                     type="button"
@@ -599,9 +599,9 @@ export default function OrderRequestsModule({
     <div className="min-w-0 space-y-6">
       {/* ── VIEW B: EVENT WORKSPACE HEADER ── */}
       <div className="dashboard-surfaces">
-        <Card className="dashboard-welcome relative overflow-hidden p-4 sm:p-5 space-y-4">
+        <Card className="relative overflow-hidden p-4 sm:p-5 space-y-4">
           <div className="dashboard-surfaces">
-            <Card className="dashboard-welcome relative overflow-hidden p-4 sm:p-5 space-y-4">
+            <Card className="relative overflow-hidden p-4 sm:p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
@@ -707,7 +707,7 @@ export default function OrderRequestsModule({
       {workspaceTab === "overview" && (
         <div className="space-y-4">
           <div className="dashboard-surfaces grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="dashboard-welcome relative overflow-hidden p-4 space-y-2">
+            <Card className="relative overflow-hidden p-4 space-y-2">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Asset Fulfillment
               </div>
@@ -731,7 +731,7 @@ export default function OrderRequestsModule({
               </button>
             </Card>
 
-            <Card className="dashboard-welcome relative overflow-hidden p-4 space-y-2">
+            <Card className="relative overflow-hidden p-4 space-y-2">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Crew &amp; Schedule Readiness
               </div>
@@ -753,7 +753,7 @@ export default function OrderRequestsModule({
               </button>
             </Card>
 
-            <Card className="dashboard-welcome relative overflow-hidden p-4 space-y-2">
+            <Card className="relative overflow-hidden p-4 space-y-2">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Production Progress
               </div>
@@ -787,7 +787,7 @@ export default function OrderRequestsModule({
               </button>
             </Card>
 
-            <Card className="dashboard-welcome relative overflow-hidden p-4 space-y-2">
+            <Card className="relative overflow-hidden p-4 space-y-2">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Dispatch &amp; Deficits
               </div>
@@ -818,7 +818,7 @@ export default function OrderRequestsModule({
           </div>
 
           <div className="dashboard-surfaces">
-            <Card className="dashboard-welcome relative overflow-hidden p-5 space-y-2 text-xs">
+            <Card className="relative overflow-hidden p-5 space-y-2 text-xs">
               <div className="font-semibold text-foreground">Client Approval Record (Read-Only)</div>
               <p className="text-muted-foreground">“{order.approvalNote}”</p>
               {eventSummary && eventSummary.readiness.unmetRequirements.length > 0 && (

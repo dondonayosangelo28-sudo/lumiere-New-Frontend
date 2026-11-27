@@ -67,7 +67,7 @@ export function Hero({ name, getGreeting = greeting }: { name?: string; getGreet
           <div className="flex items-center justify-end gap-3">
             <span className="relative size-12">
               {night ? <Moon size={22} className="absolute left-0 top-0 text-[#3b82f6]" fill="#3b82f6" /> : <Sun size={22} className="absolute left-0 top-0 text-amber-400" fill="currentColor" />}
-              <Cloud size={36} className="absolute bottom-0 right-0 text-white" fill="white" />
+              <Cloud size={36} className="absolute bottom-0 right-0 text-slate-300 dark:text-white" fill="white" />
             </span>
             <span className="text-[44px] font-bold leading-none text-foreground">26°C</span>
           </div>
@@ -128,7 +128,7 @@ function Insights() {
           { value: 'trends', label: 'Trends', icon: TrendingUp },
         ]}
       />
-      <div className="dashboard-inset mt-4 rounded-2xl bg-fg/[0.03] p-5">
+      <div className="dashboard-inset mt-4 rounded-2xl border border-line/80 bg-card p-5 dark:border-transparent dark:bg-fg/[0.03]">
         <div className="flex flex-wrap items-center justify-center gap-6">
           <div className="relative size-40 shrink-0">
             <svg viewBox="0 0 120 120" className="size-full -rotate-90 scale-[1.13]" aria-hidden="true">
@@ -248,7 +248,7 @@ function QuickTasks() {
           { value: 'done', label: `Completed (${done.length})`, icon: CircleCheck },
         ]}
       />
-      <div className="dashboard-inset mt-4 flex-1 rounded-xl bg-fg/[0.04] p-4">
+      <div className="dashboard-inset mt-4 flex-1 rounded-xl border border-line/80 bg-card p-4 dark:border-transparent dark:bg-fg/[0.04]">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -260,16 +260,16 @@ function QuickTasks() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Add a quick task..."
-            className="h-10 flex-1 rounded-md bg-fg/[0.08] px-3 text-[14px] outline-none ring-1 ring-transparent transition-shadow placeholder:text-muted-foreground focus:ring-fg/20"
+            className="h-10 flex-1 rounded-md border border-line bg-field px-3 text-[14px] outline-none ring-1 ring-transparent transition-shadow placeholder:text-muted-foreground focus:ring-fg/20 dark:border-transparent dark:bg-fg/[0.08]"
           />
-          <button aria-label="Add task" className="grid size-10 place-items-center rounded-md bg-fg/50 text-[#151515] transition-colors hover:bg-fg/70">
+          <button aria-label="Add task" className="grid size-10 place-items-center rounded-md bg-[#2c2c2c] text-[#f5f7f8] transition-colors hover:bg-[#1f1f1f] dark:bg-fg/50 dark:text-[#151515] dark:hover:bg-fg/70">
             <Plus size={16} />
           </button>
         </form>
         <ul className="mt-5 max-h-[232px] space-y-2 overflow-y-auto pr-1">
           {loading && <li className="grid place-items-center py-10"><Loader2 size={20} className="animate-spin text-muted-foreground" /></li>}
           {!loading && list.map((t) => (
-            <li key={t.id} className={cx('group flex items-center gap-3 rounded-md border border-fg/[0.04] px-3 py-3 transition-colors duration-150 animate-fade-up', t.done ? 'bg-fg/[0.08] hover:bg-fg/[0.12]' : 'hover:bg-fg/[0.05]')}>
+            <li key={t.id} className={cx('group flex items-center gap-3 rounded-md border border-line bg-card px-3 py-3 transition-colors duration-150 animate-fade-up dark:border-fg/[0.04] dark:bg-transparent', t.done ? 'bg-[#f5f5f5] hover:bg-[#eeeeee] dark:bg-fg/[0.08] dark:hover:bg-fg/[0.12]' : 'hover:bg-[#f7f9fb] dark:hover:bg-fg/[0.05]')}>
               <input
                 type="checkbox"
                 checked={t.done}
@@ -359,7 +359,7 @@ function Calendar() {
                 onClick={() => setSel(d)}
                 className={cx(
                   'mx-auto grid size-9 place-items-center rounded-[3px] text-[16px] tabular-nums transition-colors duration-150',
-                  isSel ? 'bg-[#e5e5e5] text-[#151515]' : 'hover:bg-fg/10',
+                  isSel ? 'bg-[#2c2c2c] text-[#f5f7f8] dark:bg-[#e5e5e5] dark:text-[#151515]' : 'hover:bg-fg/10',
                   !inMonth && !isSel && 'text-muted-foreground',
                   same(d, today) && !isSel && 'ring-1 ring-fg/30',
                 )}

@@ -220,7 +220,7 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
                     className={cx(
                       row,
                       rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0',
-                      active ? 'bg-fg/[0.18] text-foreground' : 'text-muted-foreground hover:bg-fg/[0.06] hover:text-foreground',
+                      active ? 'bg-[#f5f5f5] text-foreground dark:bg-fg/[0.18]' : 'text-muted-foreground hover:bg-[#f5f5f5]/80 hover:text-foreground dark:hover:bg-fg/[0.06]',
                     )}
                   >
                     <item.icon size={rail ? 18 : 20} strokeWidth={1.6} className="shrink-0" />
@@ -252,7 +252,7 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
                                   isUsersChild
                                     ? cx(
                                         'before:pointer-events-none before:absolute before:top-1 before:bottom-1 before:-left-[3px] before:w-px before:bg-foreground before:transition-opacity before:duration-300',
-                                        isFlashing ? 'bg-fg/[0.07] before:opacity-100' : 'bg-transparent before:opacity-0',
+                                        isFlashing ? 'bg-[#f5f5f5] before:opacity-100 dark:bg-fg/[0.07]' : 'bg-transparent before:opacity-0',
                                         isCurrent || isFlashing ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
                                       )
                                     : isCurrent
@@ -276,7 +276,7 @@ function Sidebar({ role, route, go, open, onClose, collapsed, onExpand, onLogout
         ))}
       </nav>
       <div className={cx("relative border-t border-edge px-2 pt-3", rail ? "w-[220px] lg:flex lg:w-[60px] lg:justify-center lg:px-0" : "w-[220px]")}>
-        <button onClick={onLogout} title={rail ? 'Logout' : undefined} className={cx(row, rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0', 'text-muted-foreground hover:bg-fg/20 hover:text-destructive focus-visible:bg-fg/20 focus-visible:text-destructive active:bg-fg/20 active:text-destructive')}>
+        <button onClick={onLogout} title={rail ? 'Logout' : undefined} className={cx(row, rail && 'lg:mx-auto lg:size-11 lg:justify-center lg:rounded-[10px] lg:p-0', 'text-muted-foreground hover:bg-red-500/10 hover:text-destructive focus-visible:bg-red-500/10 focus-visible:text-destructive active:bg-red-500/10 active:text-destructive dark:hover:bg-fg/20 dark:focus-visible:bg-fg/20 dark:active:bg-fg/20')}>
           <span className="grid size-5 shrink-0 place-items-center"><LogOut size={18} strokeWidth={1.6} /></span>
           <span className={cx('transition-opacity duration-200', hide)}>Logout</span>
         </button>
@@ -297,7 +297,7 @@ function useClickOutside(onOut: () => void) {
 
 const seedNotes = [
   { id: 1, title: 'New user registered', body: 'A new user signed up and is waiting for email verification', time: '2 min ago', unread: true, dot: 'bg-neutral-500' },
-  { id: 2, title: 'Project ready', body: 'A project moved from In Progress to Ready', time: '1 hour ago', unread: false, dot: 'bg-white' },
+  { id: 2, title: 'Project ready', body: 'A project moved from In Progress to Ready', time: '1 hour ago', unread: false, dot: 'bg-neutral-400 dark:bg-white' },
   { id: 3, title: 'Role permissions changed', body: "An admin role's permissions were updated", time: '3 hours ago', unread: false, dot: 'bg-neutral-500' },
   { id: 4, title: 'Security alert', body: 'Multiple failed login attempts detected on an admin account', time: '5 hours ago', unread: false, dot: 'bg-red-500' },
   { id: 5, title: 'Weekly report available', body: 'Your weekly performance summary is ready to view', time: '1 day ago', unread: false, dot: 'bg-neutral-500' },
@@ -332,7 +332,7 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
   }, [])
 
   const toggle = (m: typeof menu) => setMenu((cur) => (cur === m ? null : m))
-  const chip = 'border border-edge bg-chip text-foreground transition-colors duration-150 hover:brightness-110'
+  const chip = 'border border-edge bg-chip text-foreground transition-colors duration-150 not-dark:hover:bg-[#eef2f6] dark:hover:brightness-110'
   const pop = 'fixed right-4 top-20 z-[100] max-h-[calc(100dvh-112px)] max-w-[calc(100vw-64px)] overflow-y-auto overscroll-contain rounded-lg border border-line bg-card text-foreground shadow-xl animate-pop [&_button]:outline-none [&_button:focus-visible]:bg-fg/10 [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-inset [&_button:focus-visible]:ring-fg/30 [&_button:disabled]:cursor-default [&_button:disabled]:opacity-60'
   const menuKeys = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
@@ -370,7 +370,7 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
           className="pointer-events-none absolute inset-x-0 top-0 bg-bg"
           style={{ height: 'calc(10px + env(safe-area-inset-top))' }}
         />
-        <header className="app-topbar relative z-10 flex h-16 items-center rounded-[14px] border border-edge not-dark:bg-chrome/80 backdrop-blur-xl">
+        <header className="app-topbar relative z-10 flex h-16 items-center rounded-[14px] border border-edge not-dark:bg-chrome/95 backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 rounded-[14px] dark:hidden" style={{ backgroundImage: 'radial-gradient(2800px 900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
           <div className="relative flex w-60 items-center px-3">
             <button onClick={onMenu} aria-label="Toggle sidebar" className={cx('mr-2 grid size-8 place-items-center rounded-full text-muted-foreground', chip)}>
@@ -410,11 +410,11 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
                           </div>
                           <div className="absolute right-4 top-3 flex gap-1">
                             {n.unread && (
-                              <button aria-label="Mark as read" onClick={() => setNotes((ns) => ns.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))} className="grid size-6 place-items-center rounded-full bg-black/20 text-muted-foreground hover:text-foreground">
+                              <button aria-label="Mark as read" onClick={() => setNotes((ns) => ns.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))} className="grid size-6 place-items-center rounded-full bg-elev text-muted-foreground hover:text-foreground dark:bg-black/20">
                                 <Check size={12} />
                               </button>
                             )}
-                            <button aria-label="Dismiss" onClick={() => setNotes((ns) => ns.filter((x) => x.id !== n.id))} className="grid size-6 place-items-center rounded-full bg-black/20 text-muted-foreground hover:text-foreground">
+                            <button aria-label="Dismiss" onClick={() => setNotes((ns) => ns.filter((x) => x.id !== n.id))} className="grid size-6 place-items-center rounded-full bg-elev text-muted-foreground hover:text-foreground dark:bg-black/20">
                               <X size={12} />
                             </button>
                           </div>
@@ -422,7 +422,7 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
                       ))}
                       {notes.length === 0 && <li className="px-4 py-10 text-center text-[13px] text-muted-foreground">You're all caught up</li>}
                     </ul>
-                    <button onClick={() => (setMenu(null), go('settings-app'))} className="flex w-full items-center justify-center gap-2 border-t border-edge bg-black/10 py-3.5 text-[14px] font-semibold transition-colors hover:bg-chip">
+                    <button onClick={() => (setMenu(null), go('settings-app'))} className="flex w-full items-center justify-center gap-2 border-t border-edge bg-field py-3.5 text-[14px] font-semibold transition-colors hover:bg-chip dark:bg-black/10">
                       <Settings size={16} /> Notification Settings
                     </button>
                   </div>
