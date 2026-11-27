@@ -110,7 +110,6 @@ export default function Editor({
   const [note, setNote] = useState("")
   const [ack, setAck] = useState(false)
   const [preview, setPreview] = useState(false)
-  const [availTick, setAvailTick] = useState(0)
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   const readOnly = saved?.status === "approved"
@@ -164,7 +163,7 @@ export default function Editor({
       window.clearTimeout(t)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reqKey, brief.start, brief.end, saved?.id, saved?.revision, user.email, availTick])
+  }, [reqKey, brief.start, brief.end, saved?.id, saved?.revision, user.email])
 
   useEffect(() => {
     let live = true
@@ -520,7 +519,6 @@ export default function Editor({
               readOnly={readOnly}
               user={user}
               savedId={saved?.id}
-              onRefresh={() => setAvailTick((t) => t + 1)}
             />
           )}
         </fieldset>

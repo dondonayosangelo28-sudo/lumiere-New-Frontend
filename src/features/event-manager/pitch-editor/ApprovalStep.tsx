@@ -8,17 +8,12 @@ import {
   History,
   Loader2,
   MapPin,
-  RefreshCw,
   Users,
   type LucideIcon,
 } from "lucide-react"
-import { Badge, Button, cx } from "../../../components/ui/ui"
+import { Badge, cx } from "../../../components/ui/ui"
 import { ghostBtn } from "../../../components/admin/AdminKit"
-import { useNotify } from "../../../components/ui/Notifications"
-import {
-  publishApprovedEventToWarehouse,
-  useOperationsStore,
-} from "../../../operations/store"
+import { useOperationsStore } from "../../../operations/store"
 import { displayDate, type Brief, type Project } from "../model"
 import { previewAudit } from "../preview-data"
 import {
@@ -71,7 +66,6 @@ export function ApprovalStep({
   user: StudioUser
 }) {
   const opsState = useOperationsStore()
-  const notify = useNotify()
   const warehouseOrder = saved?.id
     ? opsState.orderRequests.find((o) => o.eventId === saved.id)
     : undefined
@@ -204,24 +198,6 @@ export function ApprovalStep({
               Approved {saved?.approvedAt && fmtStamp(saved.approvedAt)}. The
               event is on the calendar and published to Warehouse → Order Requests.
             </p>
-            {saved && (
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  icon={RefreshCw}
-                  onClick={() => {
-                    const order = publishApprovedEventToWarehouse(saved, user, brief)
-                    notify({
-                      tone: "success",
-                      text: `Idempotent handoff verified: resolved to existing Warehouse Order Request ${order.id} without duplicate creation.`,
-                    })
-                  }}
-                >
-                  Verify Idempotent Handoff
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
           <div className="mt-8">

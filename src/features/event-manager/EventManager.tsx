@@ -96,7 +96,7 @@ const pageCopy: Record<EventManagerView, { title: string; copy: string }> = {
     copy: "Every approved occasion, by the day it comes to life.",
   },
   assets: {
-    title: "Asset library",
+    title: "Asset Library",
     copy: "Find the pieces that belong in your next story.",
   },
 }
@@ -571,7 +571,11 @@ export default function EventManager({
       {!editor && !themeEditor && (
         <PageHead
           crumb={label}
-          eyebrow={view === "assets" ? undefined : label}
+          eyebrow={
+            view === "assets" || view === "studio" || view === "creation"
+              ? undefined
+              : label
+          }
           title={copy.title}
           copy={copy.copy}
           action={headAction}

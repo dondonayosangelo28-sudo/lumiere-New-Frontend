@@ -23,12 +23,9 @@ export default function RentalEntry({
   const noteId = useId()
   const details = rentalDisplay(entry)
   const company = details.vendorCompany || details.itemName
-  const quantity = warehouseRental?.ApprovedRequestedQty ?? Math.max(1, entry.quantity || 1)
   const confirmationStatus =
     warehouseRental?.confirmationStatus ?? entry.confirmationStatus ?? "Pending Confirmation"
   const bookingReference = warehouseRental?.bookingReference || entry.bookingReference
-  const itemDescription =
-    warehouseRental?.itemName || entry.itemName || entry.snapshot?.itemName || ""
   const contact = entry.contact?.trim()
 
   return (
@@ -46,23 +43,12 @@ export default function RentalEntry({
             {contact ? ` · ${contact}` : ""}
             {bookingReference ? ` · Booking ref: ${bookingReference}` : ""}
           </div>
-          {readOnly && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-foreground">
+          {readOnly && warehouseRental?.supplierAcceptance && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
               <span>
-                Approved rental quantity:{" "}
-                <strong className="font-semibold tabular-nums">{quantity}</strong>
+                Accepted via {warehouseRental.supplierAcceptance.evidenceType} (
+                {warehouseRental.supplierAcceptance.referenceOrUrl})
               </span>
-              {itemDescription && itemDescription !== company && (
-                <span>
-                  Rental item: <strong className="font-semibold">{itemDescription}</strong>
-                </span>
-              )}
-              {warehouseRental?.supplierAcceptance && (
-                <span className="text-muted-foreground">
-                  Accepted via {warehouseRental.supplierAcceptance.evidenceType} (
-                  {warehouseRental.supplierAcceptance.referenceOrUrl})
-                </span>
-              )}
             </div>
           )}
         </div>
@@ -90,29 +76,36 @@ export default function RentalEntry({
           </div>
         )}
       </div>
-      {(noteOpen || (readOnly && !!entry.note)) && (
-        <div id={noteId} className="mt-3">
-          <textarea
-            aria-label={`Internal note for ${company}`}
-            className={textareaCls}
-            rows={3}
-            value={entry.note ?? ""}
-            readOnly={readOnly}
-            placeholder="Discussion notes, delivery arrangements, or instructions…"
-            onChange={(event) => onChange({ note: event.target.value })}
-          />
-          {!readOnly && !!entry.note && (
-            <div className="mt-1 flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onChange({ note: "" })}
-              >
-                Clear note
-              </Button>
-            </div>
-          )}
-        </div>
+      {readOnly ? (
+        !!entry.note?.trim() && (
+          <p className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-line bg-[var(--em-inset)] px-3 py-2 text-xs leading-relaxed text-foreground">
+            {entry.note}
+          </p>
+        )
+      ) : (
+        noteOpen && (
+          <div id={noteId} className="mt-3">
+            <textarea
+              aria-label={`Internal note for ${company}`}
+              className={textareaCls}
+              rows={3}
+              value={entry.note ?? ""}
+              placeholder="Discussion notes, delivery arrangements, or instructions…"
+              onChange={(event) => onChange({ note: event.target.value })}
+            />
+            {!!entry.note && (
+              <div className="mt-1 flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onChange({ note: "" })}
+                >
+                  Clear note
+                </Button>
+              </div>
+            )}
+          </div>
+        )
       )}
     </li>
   )

@@ -7,7 +7,6 @@ import {
   ImagePlus,
   PackageOpen,
   Plus,
-  RefreshCw,
   Upload,
   Users,
   X,
@@ -52,7 +51,6 @@ export function AssetStep({
   readOnly,
   user,
   savedId,
-  onRefresh,
 }: {
   brief: Brief
   update: (p: Partial<Brief>) => void
@@ -60,7 +58,6 @@ export function AssetStep({
   readOnly: boolean
   user: StudioUser
   savedId?: string
-  onRefresh: () => void
 }) {
   const [rental, setRental] = useState("")
   const [rentalError, setRentalError] = useState("")
@@ -68,7 +65,6 @@ export function AssetStep({
   const [localPickerRequest, setLocalPickerRequest] = useState(0)
   const [pick, setPick] = useState("")
   const [sameDay, setSameDay] = useState<number | null>(null)
-  const [tick, setTick] = useState(0)
   const day = datePart(brief.start)
 
   useEffect(() => {
@@ -94,7 +90,7 @@ export function AssetStep({
     return () => {
       live = false
     }
-  }, [day, savedId, user, tick])
+  }, [day, savedId, user])
 
   const setQty = (id: string, n: number, confirmed = false) => {
     const usedOnBoard = brief.requirements.find((r) => r.assetId === id)?.boardQuantity ?? 0
@@ -465,16 +461,6 @@ export function AssetStep({
           </div>
           <div className="em-req-foot">
             <span>Includes one preparation day and one return day.</span>
-            <button
-              type="button"
-              className="em-btn em-btn--quiet em-btn--sm"
-              onClick={() => {
-                onRefresh()
-                setTick((t) => t + 1)
-              }}
-            >
-              <RefreshCw size={14} strokeWidth={1.5} aria-hidden /> Refresh
-            </button>
           </div>
         </section>
 
@@ -758,13 +744,7 @@ export function AssetStep({
 
           {customItems.length > 0 ? (
             <ul className="mt-4 divide-y divide-line">
-              {customItems.map((ci) => {
-                const prodJob = savedId
-                  ? opsState.fabricationJobs.find(
-                      (j) => j.eventId === savedId && j.customItemId === ci.id,
-                    )
-                  : undefined
-                return (
+              {customItems.map((ci) => (
                   <li key={ci.id} className="py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -781,19 +761,6 @@ export function AssetStep({
                             <Badge tone="info">
                               {readOnly ? `Approved qty: ${ci.quantity}` : `Qty: ${ci.quantity}`}
                             </Badge>
-                            {prodJob && (
-                              <Badge
-                                tone={
-                                  prodJob.status === "Ready to Load"
-                                    ? "success"
-                                    : prodJob.status === "Needs Correction"
-                                      ? "danger"
-                                      : "warning"
-                                }
-                              >
-                                Warehouse job: {prodJob.status}
-                              </Badge>
-                            )}
                           </div>
                           <div className="mt-1.5 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                             <span>
@@ -829,8 +796,7 @@ export function AssetStep({
                       )}
                     </div>
                   </li>
-                )
-              })}
+              ))}
             </ul>
           ) : (
             <p className="mt-4 text-[13px] text-muted-foreground">

@@ -20,7 +20,7 @@ export function PageHead({
 }) {
   const navigation = useContext(NavigationContext)
   const home = () => navigation?.go("overview")
-  const crumbs = crumb ? ["Dashboard", crumb] : ["Dashboard"]
+  const crumbs = crumb ? ["Overview", crumb] : ["Overview"]
   return (
     <>
       {/* Same breadcrumb trail as the admin PageHeader. */}

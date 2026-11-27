@@ -69,7 +69,7 @@ function navFor(role: Role): NavGroup[] {
       {
         section: 'Event Manager',
         items: [
-          { label: 'Dashboard', icon: Home, route: 'overview' },
+          { label: 'Overview', icon: Home, route: 'overview' },
           ...['client-pitching', 'event-concepts', 'event-creation', 'asset-requests'].map(toNavItem),
         ],
       },
@@ -312,6 +312,9 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
   useCloseOnOverlay((root) => { setMenu(null); if (!root?.querySelector('[data-command-palette]')) setPalette(false) })
   useEffect(() => { setMenu(null) }, [route])
   const menuBackdrop = useOverlayPresence(Boolean(menu), 200)
+  const lastMenuRef = useRef<'bell' | 'user' | null>(null)
+  if (menu) lastMenuRef.current = menu
+  const backdropMenu = menu ?? lastMenuRef.current
   const name = accountName(account)
   const ini = initials(name)
 
@@ -347,7 +350,11 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
       {menuBackdrop.rendered && (
         <div
           aria-hidden="true"
-          className={cx('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', menuBackdrop.visible ? 'opacity-100' : 'pointer-events-none opacity-0')}
+          className={cx(
+            'fixed inset-0 z-30 transition-opacity duration-200',
+            backdropMenu === 'user' ? (dark ? 'bg-black/20' : 'bg-transparent') : 'bg-black/55',
+            menuBackdrop.visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
         />
       )}
       <div
@@ -363,7 +370,7 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
           className="pointer-events-none absolute inset-x-0 top-0 bg-bg"
           style={{ height: 'calc(10px + env(safe-area-inset-top))' }}
         />
-        <header className="app-topbar relative flex h-16 items-center rounded-[14px] border border-edge not-dark:bg-chrome/80 backdrop-blur-xl">
+        <header className="app-topbar relative z-10 flex h-16 items-center rounded-[14px] border border-edge not-dark:bg-chrome/80 backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 rounded-[14px] dark:hidden" style={{ backgroundImage: 'radial-gradient(2800px 900px at 0% 0%, rgba(205,205,205,0.04) 0%, rgba(205,205,205,0) 30%, rgba(0,0,0,0) 70%)' }} />
           <div className="relative flex w-60 items-center px-3">
             <button onClick={onMenu} aria-label="Toggle sidebar" className={cx('mr-2 grid size-8 place-items-center rounded-full text-muted-foreground', chip)}>
@@ -429,29 +436,37 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
                   <ChevronDown size={16} className={cx('text-muted-foreground transition-transform duration-200', menu === 'user' && 'rotate-180')} />
                 </button>
                 {menu === 'user' && (
-                  <div onKeyDown={menuKeys} className={cx(pop, 'w-64')}>
-                    <div className="flex items-center gap-3 px-4 py-3">
+                  <div
+                    onKeyDown={menuKeys}
+                    className={cx(
+                      'absolute right-0 top-[calc(100%+8px)] z-[100] w-64 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-88px)] overflow-y-auto overscroll-contain rounded-xl border text-foreground animate-pop [&_button]:outline-none [&_button:focus-visible]:bg-fg/10 [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-inset [&_button:focus-visible]:ring-fg/30 [&_button:disabled]:cursor-default [&_button:disabled]:opacity-60',
+                      dark
+                        ? 'border-white/[0.08] bg-[#191919] shadow-[0_16px_40px_-4px_rgba(0,0,0,0.55)]'
+                        : 'border-black/[0.08] bg-[#fcfcfd] shadow-[0_10px_28px_-4px_rgba(0,0,0,0.08),0_2px_8px_-2px_rgba(0,0,0,0.04)]',
+                    )}
+                  >
+                    <div className={cx('flex items-center gap-3 border-b px-4 py-3', dark ? 'border-white/[0.06]' : 'border-black/[0.06]')}>
                       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#3c3d41] text-[13px] font-semibold text-white" aria-hidden>{ini}</span>
                       <div className="min-w-0">
-                        <p className="truncate text-[16px] font-semibold">{name}</p>
-                        <p className="truncate text-[14px] text-muted-foreground">{account.email}</p>
+                        <p className="truncate text-[15px] font-semibold leading-tight">{name}</p>
+                        <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{account.email}</p>
                         <p className="mt-1 inline-flex rounded-full border border-edge px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{account.role}</p>
                       </div>
                     </div>
-                    <div className="py-1">
+                    <div className="py-1.5">
                       {(
                         [
                           ['Profile', UserRound, 'settings-profile'],
                           ['Settings', Settings, 'settings-app'],
                         ] as const
                       ).map(([l, Icon, r]) => (
-                        <button key={l} onClick={() => (go(r), setMenu(null))} className="flex w-full items-center gap-2 px-4 py-2 text-left text-[14px] transition-colors hover:bg-chip">
+                        <button key={l} onClick={() => (go(r), setMenu(null))} className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[14px] transition-colors hover:bg-chip">
                           <Icon size={14} /> {l}
                         </button>
                       ))}
                     </div>
-                    <div className="border-t border-edge py-1">
-                      <button onClick={() => (setMenu(null), onLogout())} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px] text-[#f87171] transition-colors hover:bg-chip">
+                    <div className={cx('border-t py-1.5', dark ? 'border-white/[0.06]' : 'border-black/[0.06]')}>
+                      <button onClick={() => (setMenu(null), onLogout())} className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[14px] text-[#f87171] transition-colors hover:bg-chip">
                         <LogOut size={14} /> Logout
                       </button>
                     </div>
@@ -461,7 +476,7 @@ function TopBar({ account, route, dark, setDark, onMenu, go, onLogout }: { accou
             </div>
           </div>
         </header>
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-3 bg-linear-to-b from-bg via-bg/80 to-transparent" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full z-0 h-3 bg-linear-to-b from-bg via-bg/80 to-transparent" />
       </div>
       <CommandPalette role={account.role} open={palette} onClose={() => setPalette(false)} go={go} />
     </>

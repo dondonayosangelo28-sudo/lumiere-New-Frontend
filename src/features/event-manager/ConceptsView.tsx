@@ -1,3 +1,4 @@
+import { useRef, useState } from "react"
 import {
   ArrowUpRight,
   FileText,
@@ -5,6 +6,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react"
+import Modal from "../../components/overlay/Modal"
 import RowMenu from "../../components/ui/RowMenu"
 import { StateCard } from "./PageHead"
 import { PitchCard, type OpenPitch } from "./PitchesView"
@@ -113,6 +115,23 @@ export function ConceptsView({
   open: OpenPitch
   startNew: () => void
 }) {
+  const [pendingTheme, setPendingTheme] = useState<ThemeBoard | null>(null)
+  const confirmingRef = useRef(false)
+  const openConfirm = (board: ThemeBoard) => {
+    confirmingRef.current = false
+    setPendingTheme(board)
+  }
+  const closeConfirm = () => {
+    if (confirmingRef.current) return
+    setPendingTheme(null)
+  }
+  const confirmCreate = () => {
+    if (!pendingTheme || confirmingRef.current) return
+    confirmingRef.current = true
+    const target = pendingTheme
+    setPendingTheme(null)
+    startRegisteredTheme(target)
+  }
   const boards = projects.filter((p) => p.brief.pins.length > 0)
   return (
     <div className="space-y-12">
@@ -130,7 +149,7 @@ export function ConceptsView({
                 palette: b.details.palette,
               }}
               action="Start a pitch from this mood board"
-              onSelect={() => startRegisteredTheme(b)}
+              onSelect={() => openConfirm(b)}
               onEdit={() => editTheme(b)}
               onDelete={() => removeTheme(b)}
             />
@@ -184,6 +203,33 @@ export function ConceptsView({
           </ul>
         )}
       </section>
+      <Modal
+        open={!!pendingTheme}
+        onClose={closeConfirm}
+        title="Create a new event pitch?"
+      >
+        <p className="text-[14px] leading-6 text-muted-foreground">
+          {pendingTheme
+            ? `Start a new event pitch using the '${pendingTheme.details.name}' theme?`
+            : ""}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={closeConfirm}
+            className="h-10 rounded-full px-4 text-[14px] font-semibold transition-colors hover:bg-fg/[0.08]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirmCreate}
+            className="flex h-10 items-center gap-2 rounded-full bg-invert px-4 text-[14px] font-medium text-invert-fg transition-opacity hover:opacity-90"
+          >
+            Create Event Pitch
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }
